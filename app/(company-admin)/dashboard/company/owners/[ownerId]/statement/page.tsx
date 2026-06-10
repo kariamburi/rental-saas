@@ -69,7 +69,7 @@ export default async function OwnerStatementPage({
         prisma.payment.findMany({
             where: {
                 companyId: user.companyId,
-                invoiceDate: dateFilter,
+                paymentDate: dateFilter,
                 invoice: {
                     unit: {
                         propertyId: { in: propertyIds },
@@ -89,7 +89,7 @@ export default async function OwnerStatementPage({
         prisma.expense.findMany({
             where: {
                 companyId: user.companyId,
-                invoiceDate: dateFilter,
+                expenseDate: dateFilter,
                 propertyId: { in: propertyIds },
             },
             include: {
@@ -100,7 +100,7 @@ export default async function OwnerStatementPage({
             where: {
                 companyId: user.companyId,
                 ownerId: owner.id,
-                invoiceDate: dateFilter,
+                payoutDate: dateFilter,
             },
             orderBy: { payoutDate: "desc" },
         }),
