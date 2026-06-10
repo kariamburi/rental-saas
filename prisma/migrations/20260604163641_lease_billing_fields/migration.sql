@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "Lease" ADD COLUMN     "billingDay" INTEGER NOT NULL DEFAULT 1,
+ADD COLUMN     "gracePeriodDays" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "notes" TEXT,
+ADD COLUMN     "rentDueDay" INTEGER NOT NULL DEFAULT 5;
