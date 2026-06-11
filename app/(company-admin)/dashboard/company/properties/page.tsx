@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { Building2, DoorOpen, MapPin } from "lucide-react";
-import AddPropertyModal from "./AddPropertyModal";
+
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
+import AddPropertyModal from "./AddPropertyModal";
 
 export default async function CompanyPropertiesPage() {
     const user = await getAuthUser();
