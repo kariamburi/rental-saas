@@ -4,6 +4,8 @@ import { CalendarDays, DoorOpen, Gauge, User, Wallet } from "lucide-react";
 import AddMeterReadingModal from "./AddMeterReadingModal";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
+import EditMeterReadingModal from "./EditMeterReadingModal";
+import DeleteMeterReadingButton from "./DeleteMeterReadingButton";
 
 export default async function MeterReadingsPage() {
     const user = await getAuthUser();
