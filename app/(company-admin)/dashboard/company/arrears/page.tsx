@@ -43,7 +43,7 @@ export default async function ArrearsPage() {
     });
 
     const totalArrears = invoices.reduce(
-        (sum, invoice) => sum + Number(invoice.balance),
+        (sum: number, invoice) => sum + Number(invoice.balance),
         0
     );
 
