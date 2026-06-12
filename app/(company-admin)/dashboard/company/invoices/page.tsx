@@ -43,7 +43,10 @@ export default async function CompanyInvoicesPage() {
         },
         orderBy: { createdAt: "desc" },
     });
-
+    const properties = await prisma.property.findMany({
+        where: { companyId: user.companyId },
+        orderBy: { name: "asc" },
+    });
     return (
         <main className="p-6">
             <div className="mb-8 overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-8 text-white shadow-xl">
@@ -58,7 +61,7 @@ export default async function CompanyInvoicesPage() {
                 </div>
             </div>
 
-            <GenerateInvoicesButton />
+            <GenerateInvoicesButton properties={properties} />
 
             <div className="mt-8 grid gap-5 md:grid-cols-3">
                 <SummaryCard title="Total Invoices" value={invoices.length} />

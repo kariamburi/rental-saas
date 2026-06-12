@@ -5,6 +5,9 @@ import { Building2, DoorOpen, MapPin } from "lucide-react";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 import AddPropertyModal from "./AddPropertyModal";
+import EditPropertyModal from "./EditPropertyModal";
+import DeletePropertyButton from "./DeletePropertyButton";
+import Link from "next/link";
 
 export default async function CompanyPropertiesPage() {
     const user = await getAuthUser();
@@ -92,9 +95,19 @@ export default async function CompanyPropertiesPage() {
                                     <Building2 size={24} />
                                 </div>
 
-                                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
-                                    ACTIVE
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <EditPropertyModal property={property} />
+
+                                    <DeletePropertyButton
+                                        propertyId={property.id}
+                                        propertyName={property.name}
+                                        unitCount={property.units.length}
+                                    />
+
+                                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+                                        ACTIVE
+                                    </span>
+                                </div>
                             </div>
 
                             <h2 className="mt-5 text-xl font-black text-slate-950">
@@ -116,6 +129,21 @@ export default async function CompanyPropertiesPage() {
                                     </p>
                                 </div>
                                 <DoorOpen className="text-emerald-600" size={26} />
+                            </div>
+                            <div className="mt-5 grid grid-cols-2 gap-3">
+                                <Link
+                                    href={`/dashboard/company/properties/${property.id}/units`}
+                                    className="rounded-2xl bg-slate-950 px-4 py-3 text-center text-sm font-black text-white transition hover:bg-emerald-700"
+                                >
+                                    View Units
+                                </Link>
+
+                                <Link
+                                    href={`/dashboard/company/properties/${property.id}/units?add=1`}
+                                    className="rounded-2xl bg-emerald-600 px-4 py-3 text-center text-sm font-black text-white transition hover:bg-emerald-700"
+                                >
+                                    Add Unit
+                                </Link>
                             </div>
                         </div>
                     ))

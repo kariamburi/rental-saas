@@ -31,7 +31,7 @@ export async function POST(req: Request) {
             );
         }
 
-        const { companyId: bodyCompanyId, year, month } = await req.json();
+        const { companyId: bodyCompanyId, year, month, propertyId } = await req.json();
 
         const companyId = resolveCompanyId(user, bodyCompanyId);
 
@@ -49,6 +49,13 @@ export async function POST(req: Request) {
             where: {
                 companyId,
                 status: "ACTIVE",
+                ...(propertyId
+                    ? {
+                        unit: {
+                            propertyId,
+                        },
+                    }
+                    : {}),
             },
             include: {
                 tenant: true,
