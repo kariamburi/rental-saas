@@ -4,6 +4,8 @@ import { DoorOpen, Home, Wallet } from "lucide-react";
 import AddUnitModal from "./AddUnitModal";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
+import EditUnitModal from "./EditUnitModal";
+import DeleteUnitButton from "./DeleteUnitButton";
 
 export default async function CompanyUnitsPage() {
     const user = await getAuthUser();
@@ -89,13 +91,21 @@ export default async function CompanyUnitsPage() {
                                     <DoorOpen size={24} />
                                 </div>
 
-                                <span
-                                    className={`rounded-full px-3 py-1 text-xs font-black ${statusStyle(
-                                        unit.status
-                                    )}`}
-                                >
-                                    {unit.status}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <EditUnitModal unit={unit} properties={properties} />
+                                    <DeleteUnitButton
+                                        unitId={unit.id}
+                                        unitNumber={unit.unitNumber}
+                                    />
+
+                                    <span
+                                        className={`rounded-full px-3 py-1 text-xs font-black ${statusStyle(
+                                            unit.status
+                                        )}`}
+                                    >
+                                        {unit.status}
+                                    </span>
+                                </div>
                             </div>
 
                             <h2 className="mt-5 text-xl font-black text-slate-950">

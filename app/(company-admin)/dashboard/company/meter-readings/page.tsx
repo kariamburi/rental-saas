@@ -104,13 +104,14 @@ export default async function MeterReadingsPage() {
                                 <th className="px-6 py-4">Used</th>
                                 <th className="px-6 py-4">Rate</th>
                                 <th className="px-6 py-4">Amount</th>
+                                <th className="px-6 py-4">Action</th>
                             </tr>
                         </thead>
 
                         <tbody className="divide-y divide-slate-100">
                             {readings.length === 0 ? (
                                 <tr>
-                                    <td colSpan={9} className="px-6 py-12 text-center">
+                                    <td colSpan={10} className="px-6 py-12 text-center">
                                         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
                                             <Gauge size={26} />
                                         </div>
@@ -173,6 +174,19 @@ export default async function MeterReadingsPage() {
                                             <div className="flex items-center gap-2 text-sm font-black text-slate-700">
                                                 <Wallet size={16} className="text-emerald-600" />
                                                 KES {Number(reading.amount).toLocaleString()}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-2">
+                                                <EditMeterReadingModal
+                                                    reading={reading}
+                                                    tenants={tenants}
+                                                />
+
+                                                <DeleteMeterReadingButton
+                                                    readingId={reading.id}
+                                                    label={`${reading.type} - ${reading.billingMonth}`}
+                                                />
                                             </div>
                                         </td>
                                     </tr>

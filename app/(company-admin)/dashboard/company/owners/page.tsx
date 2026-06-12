@@ -7,6 +7,8 @@ import AddOwnerModal from "./AddOwnerModal";
 import AssignPropertyModal from "./AssignPropertyModal";
 import Link from "next/link";
 import AddOwnerPayoutModal from "./AddOwnerPayoutModal";
+import EditOwnerModal from "./EditOwnerModal";
+import DeleteOwnerButton from "./DeleteOwnerButton";
 
 
 export default async function OwnersPage() {
@@ -173,14 +175,24 @@ export default async function OwnersPage() {
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
+                                                <EditOwnerModal owner={owner} />
+
+                                                <DeleteOwnerButton
+                                                    ownerId={owner.id}
+                                                    ownerName={owner.name}
+                                                    linkedProperties={owner.properties.length}
+                                                />
+
                                                 <AssignPropertyModal ownerId={owner.id} properties={properties} />
                                                 <AddOwnerPayoutModal ownerId={owner.id} />
+
                                                 <Link
                                                     href={`/dashboard/company/owners/${owner.id}/statement`}
                                                     className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-950 hover:text-white"
                                                 >
                                                     Statement
                                                 </Link>
+
                                                 <Link
                                                     href={`/dashboard/company/owners/${owner.id}/ledger`}
                                                     className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-600 hover:text-white"
