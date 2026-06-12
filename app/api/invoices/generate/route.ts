@@ -31,7 +31,8 @@ export async function POST(req: Request) {
             );
         }
 
-        const { companyId: bodyCompanyId, year, month, propertyId } = await req.json();
+        const { companyId: bodyCompanyId, year, month, propertyId } =
+            await req.json();
 
         const companyId = resolveCompanyId(user, bodyCompanyId);
 
@@ -42,7 +43,17 @@ export async function POST(req: Request) {
             );
         }
 
-        const period = `${year}-${String(month).padStart(2, "0")}`;
+        const yearNumber = Number(year);
+        const monthNumber = Number(month);
+
+        if (!yearNumber || !monthNumber || monthNumber < 1 || monthNumber > 12) {
+            return NextResponse.json(
+                { ok: false, error: "Invalid year or month" },
+                { status: 400 }
+            );
+        }
+
+        const period = `${yearNumber}-${String(monthNumber).padStart(2, "0")}`;
         const periodKey = period.replace("-", "");
 
         const leases = await prisma.lease.findMany({
@@ -66,124 +77,148 @@ export async function POST(req: Request) {
         let created = 0;
         let skipped = 0;
 
+        const invoiceCount = await prisma.invoice.count({
+            where: { companyId },
+        });
+
         for (const lease of leases) {
-            const existing = await prisma.invoice.findFirst({
-                where: {
-                    companyId,
-                    tenantId: lease.tenantId,
-                    unitId: lease.unitId,
-                    invoiceNo: {
-                        contains: periodKey,
-                    },
-                },
-            });
+            try {
+                if (!lease.tenantId || !lease.unitId || !lease.tenant || !lease.unit) {
+                    skipped++;
+                    continue;
+                }
 
-            if (existing) {
+                const existing = await prisma.invoice.findFirst({
+                    where: {
+                        companyId,
+                        tenantId: lease.tenantId,
+                        unitId: lease.unitId,
+                        invoiceNo: {
+                            contains: periodKey,
+                        },
+                    },
+                });
+
+                if (existing) {
+                    skipped++;
+                    continue;
+                }
+
+                const meterReadings = await prisma.meterReading.findMany({
+                    where: {
+                        companyId,
+                        tenantId: lease.tenantId,
+                        unitId: lease.unitId,
+                        billingMonth: period,
+                    },
+                });
+
+                const items: {
+                    description: string;
+                    type: string;
+                    amount: number;
+                }[] = [];
+
+                const monthlyRent = toNumber(lease.monthlyRent);
+
+                if (monthlyRent > 0) {
+                    items.push({
+                        description: "Monthly Rent",
+                        type: "RENT",
+                        amount: monthlyRent,
+                    });
+                }
+
+                if (toNumber(lease.garbageCharge) > 0) {
+                    items.push({
+                        description: "Garbage Collection",
+                        type: "GARBAGE",
+                        amount: toNumber(lease.garbageCharge),
+                    });
+                }
+
+                if (toNumber(lease.securityCharge) > 0) {
+                    items.push({
+                        description: "Security Charge",
+                        type: "SECURITY",
+                        amount: toNumber(lease.securityCharge),
+                    });
+                }
+
+                if (toNumber(lease.serviceCharge) > 0) {
+                    items.push({
+                        description: "Service Charge",
+                        type: "SERVICE",
+                        amount: toNumber(lease.serviceCharge),
+                    });
+                }
+
+                for (const reading of meterReadings) {
+                    const readingAmount = toNumber(reading.amount);
+
+                    if (readingAmount <= 0) continue;
+
+                    items.push({
+                        description: `${reading.type} (${Number(
+                            reading.previousReading
+                        ).toLocaleString()} → ${Number(
+                            reading.currentReading
+                        ).toLocaleString()} @ KES ${Number(
+                            reading.ratePerUnit
+                        ).toLocaleString()})`,
+                        type: reading.type,
+                        amount: readingAmount,
+                    });
+                }
+
+                const totalAmount = items.reduce<number>(
+                    (sum, item) => sum + item.amount,
+                    0
+                );
+
+                if (totalAmount <= 0 || items.length === 0) {
+                    skipped++;
+                    continue;
+                }
+
+                const invoiceNo = `INV-${periodKey}-${pad(
+                    invoiceCount + created + 1
+                )}`;
+
+                const dueDate = new Date(
+                    yearNumber,
+                    monthNumber - 1,
+                    lease.rentDueDay || 5
+                );
+
+                await prisma.invoice.create({
+                    data: {
+                        companyId,
+                        tenantId: lease.tenantId,
+                        unitId: lease.unitId,
+                        invoiceNo,
+                        invoiceDate: new Date(),
+                        dueDate,
+                        amount: totalAmount,
+                        paidAmount: 0,
+                        balance: totalAmount,
+                        status: "PENDING",
+                        items: {
+                            create: items.map((item) => ({
+                                description: item.description,
+                                type: item.type,
+                                amount: item.amount,
+                            })),
+                        },
+                    },
+                });
+
+                created++;
+            } catch (error) {
+                console.error("Skipping lease invoice error:", lease.id, error);
                 skipped++;
                 continue;
             }
-
-            const meterReadings = await prisma.meterReading.findMany({
-                where: {
-                    companyId,
-                    tenantId: lease.tenantId,
-                    unitId: lease.unitId,
-                    billingMonth: period,
-                },
-            });
-
-            const items: {
-                description: string;
-                type: string;
-                amount: number;
-            }[] = [];
-
-            items.push({
-                description: "Monthly Rent",
-                type: "RENT",
-                amount: toNumber(lease.monthlyRent),
-            });
-
-            if (toNumber(lease.garbageCharge) > 0) {
-                items.push({
-                    description: "Garbage Collection",
-                    type: "GARBAGE",
-                    amount: toNumber(lease.garbageCharge),
-                });
-            }
-
-            if (toNumber(lease.securityCharge) > 0) {
-                items.push({
-                    description: "Security Charge",
-                    type: "SECURITY",
-                    amount: toNumber(lease.securityCharge),
-                });
-            }
-
-            if (toNumber(lease.serviceCharge) > 0) {
-                items.push({
-                    description: "Service Charge",
-                    type: "SERVICE",
-                    amount: toNumber(lease.serviceCharge),
-                });
-            }
-
-            for (const reading of meterReadings) {
-                items.push({
-                    description: `${reading.type} (${Number(
-                        reading.previousReading
-                    ).toLocaleString()} → ${Number(
-                        reading.currentReading
-                    ).toLocaleString()} @ KES ${Number(
-                        reading.ratePerUnit
-                    ).toLocaleString()})`,
-                    type: reading.type,
-                    amount: toNumber(reading.amount),
-                });
-            }
-
-            const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
-
-            if (totalAmount <= 0) {
-                skipped++;
-                continue;
-            }
-
-            const count = await prisma.invoice.count({
-                where: { companyId },
-            });
-
-            const invoiceNo = `INV-${periodKey}-${pad(count + created + 1)}`;
-
-            const dueDate = new Date(
-                Number(year),
-                Number(month) - 1,
-                lease.rentDueDay || 5
-            );
-
-            await prisma.invoice.create({
-                data: {
-                    companyId,
-                    tenantId: lease.tenantId,
-                    unitId: lease.unitId,
-                    invoiceNo,
-                    invoiceDate: new Date(),
-                    dueDate,
-                    amount: totalAmount,
-                    paidAmount: 0,
-                    balance: totalAmount,
-                    status: "PENDING",
-                    items: {
-                        create: items.map((item) => ({
-                            description: item.description,
-                            type: item.type,
-                            amount: item.amount,
-                        })),
-                    },
-                },
-            });
-
-            created++;
         }
 
         return NextResponse.json({
@@ -192,11 +227,14 @@ export async function POST(req: Request) {
             skipped,
             totalLeases: leases.length,
         });
-    } catch (error) {
+    } catch (error: any) {
         console.error("Generate invoices error:", error);
 
         return NextResponse.json(
-            { ok: false, error: "Server error while generating invoices" },
+            {
+                ok: false,
+                error: error?.message || "Server error while generating invoices",
+            },
             { status: 500 }
         );
     }
