@@ -49,7 +49,7 @@ export default function DeleteMeterReadingButton({
         <button
             onClick={handleDelete}
             disabled={loading}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50 text-red-600 transition hover:bg-red-100 disabled:opacity-60"
+            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-red-50 text-red-600 transition hover:bg-red-100 disabled:opacity-60"
             title="Delete reading"
         >
             <Trash2 size={16} />

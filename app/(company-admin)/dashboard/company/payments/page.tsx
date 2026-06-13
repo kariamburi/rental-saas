@@ -5,6 +5,7 @@ import AddPaymentModal from "./AddPaymentModal";
 import Link from "next/link";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
+import ReversePaymentButton from "./ReversePaymentButton";
 
 export default async function CompanyPaymentsPage() {
     const user = await getAuthUser();
@@ -43,7 +44,9 @@ export default async function CompanyPaymentsPage() {
         orderBy: { createdAt: "desc" },
     });
 
-    const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const totalPaid = payments
+        .filter((p) => p.status === "ACTIVE")
+        .reduce((sum, p) => sum + Number(p.amount), 0);
 
     return (
         <main className="p-6">
@@ -97,13 +100,15 @@ export default async function CompanyPaymentsPage() {
                                 <th className="px-6 py-4">Payment Date</th>
                                 <th className="px-6 py-4">Received By</th>
                                 <th className="px-6 py-4">Receipt</th>
+                                <th className="px-6 py-4">Status</th>
+                                <th className="px-6 py-4">Action</th>
                             </tr>
                         </thead>
 
                         <tbody className="divide-y divide-slate-100">
                             {payments.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} className="px-6 py-12 text-center">
+                                    <td colSpan={10} className="px-6 py-12 text-center">
                                         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
                                             <WalletCards size={26} />
                                         </div>
@@ -164,6 +169,26 @@ export default async function CompanyPaymentsPage() {
                                             >
                                                 View Receipt
                                             </Link>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span
+                                                className={`rounded-full px-3 py-1 text-xs font-black ${payment.status === "ACTIVE"
+                                                    ? "bg-emerald-50 text-emerald-700"
+                                                    : "bg-red-50 text-red-700"
+                                                    }`}
+                                            >
+                                                {payment.status}
+                                            </span>
+                                        </td>
+
+                                        <td className="px-6 py-4">
+                                            {payment.status === "ACTIVE" ? (
+                                                <ReversePaymentButton paymentId={payment.id} />
+                                            ) : (
+                                                <span className="text-xs font-bold text-slate-400">
+                                                    Reversed
+                                                </span>
+                                            )}
                                         </td>
                                     </tr>
                                 ))

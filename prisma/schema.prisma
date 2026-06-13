@@ -181,6 +181,11 @@ model Payment {
   company Company @relation(fields: [companyId], references: [id])
   invoice Invoice @relation(fields: [invoiceId], references: [id])
   tenant  Tenant  @relation(fields: [tenantId], references: [id])
+
+status        String   @default("ACTIVE") // ACTIVE, REVERSED
+reversedAt    DateTime?
+reversedBy    String?
+reverseReason String?
 }
 
 model Expense {

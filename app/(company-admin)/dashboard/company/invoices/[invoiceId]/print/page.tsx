@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import PrintButton from "./PrintButton";
+import GoBackButton from "./GoBackButton";
 
 export default async function InvoicePrintPage({
     params,
@@ -38,7 +39,10 @@ export default async function InvoicePrintPage({
                     </div>
 
                     <div className="text-right">
-                        <PrintButton />
+                        <div className="mb-3 flex items-center justify-end gap-2 print:hidden">
+                            {/**  <GoBackButton />*/}
+                            <PrintButton />
+                        </div>
                         <p className="mt-3 text-sm font-black text-slate-950 print:mt-0">
                             {invoice.company.name}
                         </p>

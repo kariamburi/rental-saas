@@ -1,24 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { CalendarDays, DoorOpen, Gauge, User, Wallet } from "lucide-react";
-import AddMeterReadingModal from "./AddMeterReadingModal";
+import { Gauge } from "lucide-react";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
-import EditMeterReadingModal from "./EditMeterReadingModal";
-import DeleteMeterReadingButton from "./DeleteMeterReadingButton";
+import MeterReadingsClient from "./MeterReadingsClient";
 
 export default async function MeterReadingsPage() {
     const user = await getAuthUser();
 
     if (!user) redirect("/login");
-
-    if (user.role !== Roles.COMPANY_ADMIN) {
-        redirect("/dashboard");
-    }
-
-    if (!user.companyId) {
-        redirect("/dashboard");
-    }
+    if (user.role !== Roles.COMPANY_ADMIN) redirect("/dashboard");
+    if (!user.companyId) redirect("/dashboard");
 
     const company = await prisma.company.findUnique({
         where: { id: user.companyId },
@@ -26,17 +18,23 @@ export default async function MeterReadingsPage() {
 
     if (!company) redirect("/dashboard");
 
+    const properties = await prisma.property.findMany({
+        where: { companyId: user.companyId },
+        orderBy: { name: "asc" },
+    });
+
     const tenants = await prisma.tenant.findMany({
         where: {
             companyId: user.companyId,
             status: { in: ["ACTIVE", "NOTICE"] },
+            unitId: { not: null },
         },
         include: {
             unit: {
                 include: { property: true },
             },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { name: "asc" },
     });
 
     const readings = await prisma.meterReading.findMany({
@@ -58,22 +56,19 @@ export default async function MeterReadingsPage() {
     return (
         <main className="p-6">
             <div className="mb-8 overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-8 text-white shadow-xl">
-                <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
-                    <div>
-                        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-300">
-                            Meter Readings
-                        </p>
-                        <h1 className="mt-3 text-3xl font-black">{company.name}</h1>
-                        <p className="mt-2 max-w-2xl text-slate-300">
-                            Record water and electricity readings for variable tenant billing.
-                        </p>
-                    </div>
-
-                    <AddMeterReadingModal tenants={tenants} />
+                <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-300">
+                        Meter Readings
+                    </p>
+                    <h1 className="mt-3 text-3xl font-black">{company.name}</h1>
+                    <p className="mt-2 max-w-2xl text-slate-300">
+                        Select property, filter tenants, record water and electricity usage,
+                        then generate tenant invoice.
+                    </p>
                 </div>
             </div>
 
-            <div className="grid gap-5 md:grid-cols-3">
+            <div className="mb-8 grid gap-5 md:grid-cols-3">
                 <SummaryCard title="Total Readings" value={readings.length} />
                 <SummaryCard
                     title="Water Readings"
@@ -85,119 +80,25 @@ export default async function MeterReadingsPage() {
                 />
             </div>
 
-            <div className="mt-8 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-100 px-6 py-5">
-                    <h2 className="text-lg font-black text-slate-950">Reading List</h2>
-                    <p className="text-sm text-slate-500">
-                        Meter readings that can be included in monthly invoices
+            {properties.length === 0 || tenants.length === 0 ? (
+                <div className="rounded-[2rem] border border-slate-200 bg-white p-12 text-center shadow-sm">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                        <Gauge size={26} />
+                    </div>
+                    <h3 className="mt-4 text-lg font-black text-slate-950">
+                        No property or active tenant found
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                        Add properties, units, and active tenants before recording meter readings.
                     </p>
                 </div>
-
-                <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1100px] text-left">
-                        <thead className="bg-slate-50 text-xs font-black uppercase tracking-wider text-slate-500">
-                            <tr>
-                                <th className="px-6 py-4">Tenant</th>
-                                <th className="px-6 py-4">Unit</th>
-                                <th className="px-6 py-4">Type</th>
-                                <th className="px-6 py-4">Month</th>
-                                <th className="px-6 py-4">Previous</th>
-                                <th className="px-6 py-4">Current</th>
-                                <th className="px-6 py-4">Used</th>
-                                <th className="px-6 py-4">Rate</th>
-                                <th className="px-6 py-4">Amount</th>
-                                <th className="px-6 py-4">Action</th>
-                            </tr>
-                        </thead>
-
-                        <tbody className="divide-y divide-slate-100">
-                            {readings.length === 0 ? (
-                                <tr>
-                                    <td colSpan={10} className="px-6 py-12 text-center">
-                                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                                            <Gauge size={26} />
-                                        </div>
-                                        <h3 className="mt-4 text-lg font-black text-slate-950">
-                                            No meter readings yet
-                                        </h3>
-                                        <p className="mt-1 text-sm text-slate-500">
-                                            Add water or electricity readings before generating invoices.
-                                        </p>
-                                    </td>
-                                </tr>
-                            ) : (
-                                readings.map((reading) => (
-                                    <tr key={reading.id} className="transition hover:bg-slate-50">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                <User size={16} className="text-emerald-600" />
-                                                {reading.tenant.name}
-                                            </div>
-                                        </td>
-
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                <DoorOpen size={16} className="text-emerald-600" />
-                                                {reading.unit.property.name} - Unit{" "}
-                                                {reading.unit.unitNumber}
-                                            </div>
-                                        </td>
-
-                                        <td className="px-6 py-4">
-                                            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
-                                                {reading.type}
-                                            </span>
-                                        </td>
-
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                <CalendarDays size={16} className="text-emerald-600" />
-                                                {reading.billingMonth}
-                                            </div>
-                                        </td>
-
-                                        <td className="px-6 py-4 text-sm font-semibold text-slate-600">
-                                            {Number(reading.previousReading).toLocaleString()}
-                                        </td>
-
-                                        <td className="px-6 py-4 text-sm font-semibold text-slate-600">
-                                            {Number(reading.currentReading).toLocaleString()}
-                                        </td>
-
-                                        <td className="px-6 py-4 text-sm font-black text-slate-700">
-                                            {Number(reading.unitsUsed).toLocaleString()}
-                                        </td>
-
-                                        <td className="px-6 py-4 text-sm font-semibold text-slate-600">
-                                            KES {Number(reading.ratePerUnit).toLocaleString()}
-                                        </td>
-
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-black text-slate-700">
-                                                <Wallet size={16} className="text-emerald-600" />
-                                                KES {Number(reading.amount).toLocaleString()}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2">
-                                                <EditMeterReadingModal
-                                                    reading={reading}
-                                                    tenants={tenants}
-                                                />
-
-                                                <DeleteMeterReadingButton
-                                                    readingId={reading.id}
-                                                    label={`${reading.type} - ${reading.billingMonth}`}
-                                                />
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            ) : (
+                <MeterReadingsClient
+                    properties={properties}
+                    tenants={tenants}
+                    readings={readings}
+                />
+            )}
         </main>
     );
 }

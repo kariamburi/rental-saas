@@ -20,6 +20,11 @@ function resolveCompanyId(
     return null;
 }
 
+function getInvoicePeriodKey(invoiceNo: string) {
+    const match = invoiceNo.match(/(\d{6})/);
+    return match ? match[1] : "";
+}
+
 export async function POST(req: Request) {
     try {
         const user = await getAuthUser();
@@ -31,8 +36,14 @@ export async function POST(req: Request) {
             );
         }
 
-        const { companyId: bodyCompanyId, year, month, propertyId } =
-            await req.json();
+        const {
+            companyId: bodyCompanyId,
+            year,
+            month,
+            propertyId,
+            tenantId,
+            utilitiesOnly = false,
+        } = await req.json();
 
         const companyId = resolveCompanyId(user, bodyCompanyId);
 
@@ -60,6 +71,7 @@ export async function POST(req: Request) {
             where: {
                 companyId,
                 status: "ACTIVE",
+                ...(tenantId ? { tenantId } : {}),
                 ...(propertyId
                     ? {
                         unit: {
@@ -76,6 +88,7 @@ export async function POST(req: Request) {
 
         let created = 0;
         let skipped = 0;
+        const invoices: any[] = [];
 
         const invoiceCount = await prisma.invoice.count({
             where: { companyId },
@@ -94,15 +107,41 @@ export async function POST(req: Request) {
                         tenantId: lease.tenantId,
                         unitId: lease.unitId,
                         invoiceNo: {
-                            contains: periodKey,
+                            contains: utilitiesOnly ? `UTIL-${periodKey}` : periodKey,
                         },
                     },
                 });
 
                 if (existing) {
+                    invoices.push(existing);
                     skipped++;
                     continue;
                 }
+
+                const previousInvoices = await prisma.invoice.findMany({
+                    where: {
+                        companyId,
+                        tenantId: lease.tenantId,
+                        unitId: lease.unitId,
+                        balance: {
+                            not: 0,
+                        },
+                    },
+                    select: {
+                        id: true,
+                        invoiceNo: true,
+                        balance: true,
+                    },
+                });
+
+                const previousBalance = previousInvoices.reduce((sum, invoice) => {
+                    const invoicePeriodKey = getInvoicePeriodKey(invoice.invoiceNo);
+
+                    if (!invoicePeriodKey) return sum;
+                    if (invoicePeriodKey >= periodKey) return sum;
+
+                    return sum + toNumber(invoice.balance);
+                }, 0);
 
                 const meterReadings = await prisma.meterReading.findMany({
                     where: {
@@ -110,6 +149,9 @@ export async function POST(req: Request) {
                         tenantId: lease.tenantId,
                         unitId: lease.unitId,
                         billingMonth: period,
+                    },
+                    orderBy: {
+                        type: "asc",
                     },
                 });
 
@@ -119,38 +161,56 @@ export async function POST(req: Request) {
                     amount: number;
                 }[] = [];
 
-                const monthlyRent = toNumber(lease.monthlyRent);
-
-                if (monthlyRent > 0) {
+                if (!utilitiesOnly && previousBalance > 0) {
                     items.push({
-                        description: "Monthly Rent",
-                        type: "RENT",
-                        amount: monthlyRent,
+                        description: "Balance Brought Forward",
+                        type: "ARREARS",
+                        amount: previousBalance,
                     });
                 }
 
-                if (toNumber(lease.garbageCharge) > 0) {
+                if (!utilitiesOnly && previousBalance < 0) {
                     items.push({
-                        description: "Garbage Collection",
-                        type: "GARBAGE",
-                        amount: toNumber(lease.garbageCharge),
+                        description: "Credit Brought Forward",
+                        type: "CREDIT",
+                        amount: previousBalance,
                     });
                 }
 
-                if (toNumber(lease.securityCharge) > 0) {
-                    items.push({
-                        description: "Security Charge",
-                        type: "SECURITY",
-                        amount: toNumber(lease.securityCharge),
-                    });
-                }
+                if (!utilitiesOnly) {
+                    const monthlyRent = toNumber(lease.monthlyRent);
 
-                if (toNumber(lease.serviceCharge) > 0) {
-                    items.push({
-                        description: "Service Charge",
-                        type: "SERVICE",
-                        amount: toNumber(lease.serviceCharge),
-                    });
+                    if (monthlyRent > 0) {
+                        items.push({
+                            description: "Monthly Rent",
+                            type: "RENT",
+                            amount: monthlyRent,
+                        });
+                    }
+
+                    if (toNumber(lease.garbageCharge) > 0) {
+                        items.push({
+                            description: "Garbage Collection",
+                            type: "GARBAGE",
+                            amount: toNumber(lease.garbageCharge),
+                        });
+                    }
+
+                    if (toNumber(lease.securityCharge) > 0) {
+                        items.push({
+                            description: "Security Charge",
+                            type: "SECURITY",
+                            amount: toNumber(lease.securityCharge),
+                        });
+                    }
+
+                    if (toNumber(lease.serviceCharge) > 0) {
+                        items.push({
+                            description: "Service Charge",
+                            type: "SERVICE",
+                            amount: toNumber(lease.serviceCharge),
+                        });
+                    }
                 }
 
                 for (const reading of meterReadings) {
@@ -159,31 +219,37 @@ export async function POST(req: Request) {
                     if (readingAmount <= 0) continue;
 
                     items.push({
-                        description: `${reading.type} (${Number(
-                            reading.previousReading
-                        ).toLocaleString()} → ${Number(
-                            reading.currentReading
-                        ).toLocaleString()} @ KES ${Number(
-                            reading.ratePerUnit
-                        ).toLocaleString()})`,
+                        description:
+                            reading.type === "WATER"
+                                ? `Water Bill (${Number(
+                                    reading.previousReading
+                                ).toLocaleString()} → ${Number(
+                                    reading.currentReading
+                                ).toLocaleString()} @ KES ${Number(
+                                    reading.ratePerUnit
+                                ).toLocaleString()})`
+                                : `Electricity Bill (${Number(
+                                    reading.previousReading
+                                ).toLocaleString()} → ${Number(
+                                    reading.currentReading
+                                ).toLocaleString()} @ KES ${Number(
+                                    reading.ratePerUnit
+                                ).toLocaleString()})`,
                         type: reading.type,
                         amount: readingAmount,
                     });
                 }
 
-                const totalAmount = items.reduce<number>(
-                    (sum, item) => sum + item.amount,
-                    0
-                );
+                const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
 
                 if (totalAmount <= 0 || items.length === 0) {
                     skipped++;
                     continue;
                 }
 
-                const invoiceNo = `INV-${periodKey}-${pad(
-                    invoiceCount + created + 1
-                )}`;
+                const invoiceNo = utilitiesOnly
+                    ? `UTIL-${periodKey}-${pad(invoiceCount + created + 1)}`
+                    : `INV-${periodKey}-${pad(invoiceCount + created + 1)}`;
 
                 const dueDate = new Date(
                     yearNumber,
@@ -191,7 +257,7 @@ export async function POST(req: Request) {
                     lease.rentDueDay || 5
                 );
 
-                await prisma.invoice.create({
+                const invoice = await prisma.invoice.create({
                     data: {
                         companyId,
                         tenantId: lease.tenantId,
@@ -213,11 +279,11 @@ export async function POST(req: Request) {
                     },
                 });
 
+                invoices.push(invoice);
                 created++;
             } catch (error) {
                 console.error("Skipping lease invoice error:", lease.id, error);
                 skipped++;
-                continue;
             }
         }
 
@@ -226,6 +292,8 @@ export async function POST(req: Request) {
             created,
             skipped,
             totalLeases: leases.length,
+            invoice: invoices[0] || null,
+            invoices,
         });
     } catch (error: any) {
         console.error("Generate invoices error:", error);

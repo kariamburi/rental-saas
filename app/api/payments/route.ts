@@ -67,18 +67,13 @@ export async function POST(req: Request) {
             );
         }
 
-        if (payAmount > currentBalance) {
-            return NextResponse.json(
-                { ok: false, error: "Payment cannot exceed invoice balance" },
-                { status: 400 }
-            );
-        }
-
         const newPaidAmount = currentPaid + payAmount;
         const newBalance = invoiceAmount - newPaidAmount;
 
         const newStatus =
             newBalance <= 0 ? "PAID" : newPaidAmount > 0 ? "PARTIAL" : "PENDING";
+
+
 
         const payment = await prisma.$transaction(async (tx) => {
             const createdPayment = await tx.payment.create({
