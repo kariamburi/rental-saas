@@ -1,8 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, FileText, Hash, Plus, Wallet, X } from "lucide-react";
+import {
+    Building2,
+    CalendarDays,
+    FileText,
+    Hash,
+    Plus,
+    User,
+    Wallet,
+    X,
+} from "lucide-react";
 
 type InvoiceItem = {
     id: string;
@@ -23,23 +32,55 @@ type InvoiceItem = {
 };
 
 export default function AddPaymentModal({
-
     invoices,
 }: {
-
     invoices: InvoiceItem[];
 }) {
     const router = useRouter();
 
     const unpaidInvoices = invoices.filter((i) => Number(i.balance) > 0);
 
+    const properties = useMemo(() => {
+        const map = new Map<string, string>();
+
+        unpaidInvoices.forEach((invoice) => {
+            map.set(invoice.unit.property.name, invoice.unit.property.name);
+        });
+
+        return Array.from(map.values()).sort();
+    }, [unpaidInvoices]);
+
     const [open, setOpen] = useState(false);
-    const [invoiceId, setInvoiceId] = useState(unpaidInvoices[0]?.id || "");
+    const [propertyName, setPropertyName] = useState(properties[0] || "");
+
+    const tenants = useMemo(() => {
+        const map = new Map<string, string>();
+
+        unpaidInvoices
+            .filter((invoice) => invoice.unit.property.name === propertyName)
+            .forEach((invoice) => {
+                map.set(invoice.tenant.name, invoice.tenant.name);
+            });
+
+        return Array.from(map.values()).sort();
+    }, [unpaidInvoices, propertyName]);
+
+    const [tenantName, setTenantName] = useState(tenants[0] || "");
+
+    const filteredInvoices = unpaidInvoices.filter(
+        (invoice) =>
+            invoice.unit.property.name === propertyName &&
+            invoice.tenant.name === tenantName
+    );
+
+    const [invoiceId, setInvoiceId] = useState(filteredInvoices[0]?.id || "");
+
     const selectedInvoice = unpaidInvoices.find((i) => i.id === invoiceId);
 
     const [amount, setAmount] = useState(
         selectedInvoice ? String(selectedInvoice.balance) : ""
     );
+
     const [method, setMethod] = useState("CASH");
     const [reference, setReference] = useState("");
     const [paymentDate, setPaymentDate] = useState(
@@ -48,8 +89,44 @@ export default function AddPaymentModal({
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
+    function handlePropertyChange(value: string) {
+        setPropertyName(value);
+
+        const nextTenants = unpaidInvoices
+            .filter((invoice) => invoice.unit.property.name === value)
+            .map((invoice) => invoice.tenant.name);
+
+        const uniqueTenants = Array.from(new Set(nextTenants)).sort();
+        const firstTenant = uniqueTenants[0] || "";
+
+        setTenantName(firstTenant);
+
+        const nextInvoice = unpaidInvoices.find(
+            (invoice) =>
+                invoice.unit.property.name === value &&
+                invoice.tenant.name === firstTenant
+        );
+
+        setInvoiceId(nextInvoice?.id || "");
+        setAmount(nextInvoice ? String(nextInvoice.balance) : "");
+    }
+
+    function handleTenantChange(value: string) {
+        setTenantName(value);
+
+        const nextInvoice = unpaidInvoices.find(
+            (invoice) =>
+                invoice.unit.property.name === propertyName &&
+                invoice.tenant.name === value
+        );
+
+        setInvoiceId(nextInvoice?.id || "");
+        setAmount(nextInvoice ? String(nextInvoice.balance) : "");
+    }
+
     function handleInvoiceChange(value: string) {
         setInvoiceId(value);
+
         const invoice = unpaidInvoices.find((i) => i.id === value);
         setAmount(invoice ? String(invoice.balance) : "");
     }
@@ -110,13 +187,13 @@ export default function AddPaymentModal({
                                     Record Payment
                                 </h2>
                                 <p className="text-sm text-slate-500">
-                                    Apply rent payment to an outstanding invoice
+                                    Select property, tenant, then invoice
                                 </p>
                             </div>
 
                             <button
                                 onClick={() => setOpen(false)}
-                                className="flex cursor-pointer h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 hover:bg-slate-200"
+                                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl bg-slate-100 text-slate-500 hover:bg-slate-200"
                             >
                                 <X size={20} />
                             </button>
@@ -138,6 +215,32 @@ export default function AddPaymentModal({
                                 </div>
                             )}
 
+                            <div className="grid gap-5 md:grid-cols-2">
+                                <SelectBox
+                                    icon={Building2}
+                                    label="Property"
+                                    value={propertyName}
+                                    onChange={handlePropertyChange}
+                                    disabled={unpaidInvoices.length === 0}
+                                    options={properties.map((property) => ({
+                                        value: property,
+                                        label: property,
+                                    }))}
+                                />
+
+                                <SelectBox
+                                    icon={User}
+                                    label="Tenant"
+                                    value={tenantName}
+                                    onChange={handleTenantChange}
+                                    disabled={!propertyName || tenants.length === 0}
+                                    options={tenants.map((tenant) => ({
+                                        value: tenant,
+                                        label: tenant,
+                                    }))}
+                                />
+                            </div>
+
                             <div>
                                 <label className="mb-2 block text-sm font-bold text-slate-700">
                                     Invoice
@@ -147,22 +250,28 @@ export default function AddPaymentModal({
                                     <select
                                         value={invoiceId}
                                         onChange={(e) => handleInvoiceChange(e.target.value)}
-                                        className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
+                                        disabled={filteredInvoices.length === 0}
+                                        className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none disabled:opacity-50"
                                     >
-                                        {unpaidInvoices.map((invoice) => (
-                                            <option key={invoice.id} value={invoice.id}>
-                                                {invoice.invoiceNo} - {invoice.tenant.name} - Balance KES{" "}
-                                                {Number(invoice.balance).toLocaleString()}
-                                            </option>
-                                        ))}
+                                        {filteredInvoices.length === 0 ? (
+                                            <option value="">No unpaid invoice</option>
+                                        ) : (
+                                            filteredInvoices.map((invoice) => (
+                                                <option key={invoice.id} value={invoice.id}>
+                                                    {invoice.invoiceNo} - Balance KES{" "}
+                                                    {Number(invoice.balance).toLocaleString()}
+                                                </option>
+                                            ))
+                                        )}
                                     </select>
                                 </div>
                             </div>
 
                             {selectedInvoice && (
                                 <div className="rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
-                                    {selectedInvoice.tenant.name} • {selectedInvoice.unit.property.name}{" "}
-                                    Unit {selectedInvoice.unit.unitNumber} • Balance KES{" "}
+                                    {selectedInvoice.tenant.name} •{" "}
+                                    {selectedInvoice.unit.property.name} Unit{" "}
+                                    {selectedInvoice.unit.unitNumber} • Balance KES{" "}
                                     {Number(selectedInvoice.balance).toLocaleString()}
                                 </div>
                             )}
@@ -209,7 +318,7 @@ export default function AddPaymentModal({
                             </div>
 
                             <button
-                                disabled={loading || unpaidInvoices.length === 0}
+                                disabled={loading || unpaidInvoices.length === 0 || !invoiceId}
                                 className="w-full cursor-pointer rounded-2xl bg-emerald-600 py-4 text-sm font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 disabled:opacity-60"
                             >
                                 {loading ? "Saving..." : "Save Payment"}
@@ -219,6 +328,49 @@ export default function AddPaymentModal({
                 </div>
             )}
         </>
+    );
+}
+
+function SelectBox({
+    icon: Icon,
+    label,
+    value,
+    onChange,
+    options,
+    disabled = false,
+}: {
+    icon: React.ElementType;
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    options: { value: string; label: string }[];
+    disabled?: boolean;
+}) {
+    return (
+        <div>
+            <label className="mb-2 block text-sm font-bold text-slate-700">
+                {label}
+            </label>
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-emerald-100">
+                <Icon size={18} className="text-emerald-600" />
+                <select
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    disabled={disabled}
+                    className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none disabled:opacity-50"
+                >
+                    {options.length === 0 ? (
+                        <option value="">No option available</option>
+                    ) : (
+                        options.map((option) => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
+                            </option>
+                        ))
+                    )}
+                </select>
+            </div>
+        </div>
     );
 }
 
@@ -240,7 +392,7 @@ function Input({
             <label className="mb-2 block text-sm font-bold text-slate-700">
                 {label}
             </label>
-            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-emerald-100">
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-4 focus:ring-emerald-100">
                 <Icon size={18} className="text-emerald-600" />
                 <input
                     className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
