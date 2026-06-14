@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { CalendarDays, Home, Wallet } from "lucide-react";
+import {
+    CalendarDays,
+    ChevronDown,
+    Home,
+    Wallet,
+} from "lucide-react";
 import AddExpenseModal from "./AddExpenseModal";
 import EditExpenseModal from "./EditExpenseModal";
 import DeleteExpenseButton from "./DeleteExpenseButton";
@@ -28,7 +33,7 @@ export default async function CompanyExpensesPage() {
 
     const properties = await prisma.property.findMany({
         where: { companyId: user.companyId },
-        orderBy: { createdAt: "desc" },
+        orderBy: { name: "asc" },
     });
 
     const expenses = await prisma.expense.findMany({
@@ -69,88 +74,159 @@ export default async function CompanyExpensesPage() {
                 <SummaryCard title="Properties" value={properties.length} />
             </div>
 
-            <div className="mt-8 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-100 px-6 py-5">
-                    <h2 className="text-lg font-black text-slate-950">Expense List</h2>
+            <div className="mt-8">
+                <div className="mb-5">
+                    <h2 className="text-lg font-black text-slate-950">
+                        Expense List
+                    </h2>
                     <p className="text-sm text-slate-500">
-                        All recorded property expenses
+                        Expenses grouped by property. Click a property to expand.
                     </p>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full min-w-[900px] text-left">
-                        <thead className="bg-slate-50 text-xs font-black uppercase tracking-wider text-slate-500">
-                            <tr>
-                                <th className="px-6 py-4">Property</th>
-                                <th className="px-6 py-4">Category</th>
-                                <th className="px-6 py-4">Description</th>
-                                <th className="px-6 py-4">Amount</th>
-                                <th className="px-6 py-4">Date</th>
-                                <th className="px-6 py-4">Actions</th>
-                            </tr>
-                        </thead>
+                {expenses.length === 0 ? (
+                    <div className="rounded-[2rem] border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                            <Wallet size={26} />
+                        </div>
+                        <h3 className="mt-4 text-lg font-black text-slate-950">
+                            No expenses yet
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                            Record property costs and maintenance expenses.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {properties.map((property) => {
+                            const propertyExpenses = expenses.filter(
+                                (expense) => expense.propertyId === property.id
+                            );
 
-                        <tbody className="divide-y divide-slate-100">
-                            {expenses.length === 0 ? (
-                                <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center">
-                                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                                            <Wallet size={26} />
-                                        </div>
-                                        <h3 className="mt-4 text-lg font-black text-slate-950">
-                                            No expenses yet
-                                        </h3>
-                                        <p className="mt-1 text-sm text-slate-500">
-                                            Record property costs and maintenance expenses.
-                                        </p>
-                                    </td>
-                                </tr>
-                            ) : (
-                                expenses.map((expense) => (
-                                    <tr key={expense.id} className="transition hover:bg-slate-50">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                <Home size={16} className="text-emerald-600" />
-                                                {expense.property.name}
+                            const propertyTotalExpenses = propertyExpenses.reduce(
+                                (sum, expense) => sum + Number(expense.amount || 0),
+                                0
+                            );
+
+                            const categories = new Set(
+                                propertyExpenses.map((expense) => expense.category)
+                            );
+
+                            return (
+                                <details
+                                    key={property.id}
+                                    className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm"
+                                >
+                                    <summary className="cursor-pointer list-none px-6 py-5 transition hover:bg-slate-50">
+                                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="rounded-xl bg-emerald-50 p-2 text-emerald-600">
+                                                    <Home size={18} />
+                                                </div>
+
+                                                <div>
+                                                    <h3 className="text-lg font-black text-slate-950">
+                                                        {property.name}
+                                                    </h3>
+
+                                                    <p className="text-sm font-semibold text-slate-500">
+                                                        {propertyExpenses.length} expense(s) •{" "}
+                                                        {categories.size} categorie(s)
+                                                    </p>
+                                                </div>
                                             </div>
-                                        </td>
 
-                                        <td className="px-6 py-4">
-                                            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
-                                                {expense.category}
-                                            </span>
-                                        </td>
+                                            <div className="flex items-center gap-3">
+                                                <div className="rounded-2xl bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-700">
+                                                    Spent: KES{" "}
+                                                    {propertyTotalExpenses.toLocaleString()}
+                                                </div>
 
-                                        <td className="px-6 py-4 text-sm font-semibold text-slate-500">
-                                            {expense.description || "-"}
-                                        </td>
-
-                                        <td className="px-6 py-4 text-sm font-black text-slate-700">
-                                            KES {Number(expense.amount).toLocaleString()}
-                                        </td>
-
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                <CalendarDays size={16} className="text-emerald-600" />
-                                                {new Date(expense.expenseDate).toLocaleDateString()}
-                                            </div>
-                                        </td>
-
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2">
-                                                <EditExpenseModal
-                                                    expense={expense}
-                                                    properties={properties}
+                                                <ChevronDown
+                                                    size={20}
+                                                    className="text-slate-500 transition duration-300 group-open:rotate-180"
                                                 />
-                                                <DeleteExpenseButton expenseId={expense.id} />
                                             </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                        </div>
+                                    </summary>
+
+                                    <div className="overflow-x-auto border-t border-slate-100">
+                                        <table className="w-full min-w-[900px] text-left">
+                                            <thead className="bg-slate-50 text-xs font-black uppercase tracking-wider text-slate-500">
+                                                <tr>
+                                                    <th className="px-6 py-4">Category</th>
+                                                    <th className="px-6 py-4">Description</th>
+                                                    <th className="px-6 py-4">Amount</th>
+                                                    <th className="px-6 py-4">Date</th>
+                                                    <th className="px-6 py-4">Actions</th>
+                                                </tr>
+                                            </thead>
+
+                                            <tbody className="divide-y divide-slate-100">
+                                                {propertyExpenses.length === 0 ? (
+                                                    <tr>
+                                                        <td
+                                                            colSpan={5}
+                                                            className="px-6 py-10 text-center text-sm font-bold text-slate-500"
+                                                        >
+                                                            No expenses for this property.
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    propertyExpenses.map((expense) => (
+                                                        <tr
+                                                            key={expense.id}
+                                                            className="transition hover:bg-slate-50"
+                                                        >
+                                                            <td className="px-6 py-4">
+                                                                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+                                                                    {expense.category}
+                                                                </span>
+                                                            </td>
+
+                                                            <td className="px-6 py-4 text-sm font-semibold text-slate-500">
+                                                                {expense.description || "-"}
+                                                            </td>
+
+                                                            <td className="px-6 py-4 text-sm font-black text-slate-700">
+                                                                KES{" "}
+                                                                {Number(expense.amount).toLocaleString()}
+                                                            </td>
+
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                                                    <CalendarDays
+                                                                        size={16}
+                                                                        className="text-emerald-600"
+                                                                    />
+                                                                    {new Date(
+                                                                        expense.expenseDate
+                                                                    ).toLocaleDateString()}
+                                                                </div>
+                                                            </td>
+
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-2">
+                                                                    <EditExpenseModal
+                                                                        expense={expense}
+                                                                        properties={properties}
+                                                                    />
+                                                                    <DeleteExpenseButton
+                                                                        expenseId={expense.id}
+                                                                    />
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </details>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         </main>
     );

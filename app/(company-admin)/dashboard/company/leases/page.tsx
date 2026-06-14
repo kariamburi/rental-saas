@@ -1,6 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { CalendarDays, DoorOpen, FileText, User, Wallet } from "lucide-react";
+import {
+    Building2,
+    CalendarDays,
+    ChevronDown,
+    DoorOpen,
+    FileText,
+    User,
+    Wallet,
+} from "lucide-react";
 import AddLeaseModal from "./AddLeaseModal";
 import EditLeaseModal from "./EditLeaseModal";
 import EndLeaseButton from "./EndLeaseButton";
@@ -31,6 +39,11 @@ export default async function CompanyLeasesPage({
     });
 
     if (!company) redirect("/dashboard");
+
+    const properties = await prisma.property.findMany({
+        where: { companyId: user.companyId },
+        orderBy: { name: "asc" },
+    });
 
     const tenants = await prisma.tenant.findMany({
         where: {
@@ -86,144 +99,243 @@ export default async function CompanyLeasesPage({
                 />
             </div>
 
-            <div className="mt-8 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-100 px-6 py-5">
+            <div className="mt-8">
+                <div className="mb-5">
                     <h2 className="text-lg font-black text-slate-950">Lease List</h2>
                     <p className="text-sm text-slate-500">
-                        Tenant leases and rent agreement details
+                        Leases grouped by property. Click a property to expand.
                     </p>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1000px] text-left">
-                        <thead className="bg-slate-50 text-xs font-black uppercase tracking-wider text-slate-500">
-                            <tr>
-                                <th className="px-6 py-4">Tenant</th>
-                                <th className="px-6 py-4">Unit</th>
-                                <th className="px-6 py-4">Monthly Rent</th>
-                                <th className="px-6 py-4">Charges</th>
-                                <th className="px-6 py-4">Deposit</th>
-                                <th className="px-6 py-4">Start Date</th>
-                                <th className="px-6 py-4">End Date</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4">Actions</th>
-                            </tr>
-                        </thead>
+                {leases.length === 0 ? (
+                    <div className="rounded-[2rem] border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                            <FileText size={26} />
+                        </div>
+                        <h3 className="mt-4 text-lg font-black text-slate-950">
+                            No leases yet
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                            Create the first lease for a tenant.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {properties.map((property) => {
+                            const propertyLeases = leases.filter(
+                                (lease) => lease.unit.property.id === property.id
+                            );
 
-                        <tbody className="divide-y divide-slate-100">
-                            {leases.length === 0 ? (
-                                <tr>
-                                    <td colSpan={9} className="px-6 py-12 text-center">
-                                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                                            <FileText size={26} />
-                                        </div>
-                                        <h3 className="mt-4 text-lg font-black text-slate-950">
-                                            No leases yet
-                                        </h3>
-                                        <p className="mt-1 text-sm text-slate-500">
-                                            Create the first lease for a tenant.
-                                        </p>
-                                    </td>
-                                </tr>
-                            ) : (
-                                leases.map((lease) => (
-                                    <tr key={lease.id} className="transition hover:bg-slate-50">
-                                        <td className="px-6 py-4">
+                            const activeLeases = propertyLeases.filter(
+                                (lease) => lease.status === "ACTIVE"
+                            );
+
+                            const endedLeases = propertyLeases.filter(
+                                (lease) => lease.status === "ENDED"
+                            );
+
+                            const propertyMonthlyRent = activeLeases.reduce(
+                                (sum, lease) => sum + Number(lease.monthlyRent || 0),
+                                0
+                            );
+
+                            return (
+                                <details
+                                    key={property.id}
+                                    className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm"
+                                >
+                                    <summary className="cursor-pointer list-none px-6 py-5 transition hover:bg-slate-50">
+                                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                             <div className="flex items-center gap-3">
-                                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                                                    <User size={20} />
+                                                <div className="rounded-xl bg-emerald-50 p-2 text-emerald-600">
+                                                    <Building2 size={18} />
                                                 </div>
+
                                                 <div>
-                                                    <p className="font-black text-slate-950">
-                                                        {lease.tenant.name}
-                                                    </p>
-                                                    <p className="text-xs font-semibold text-slate-400">
-                                                        {lease.tenant.phone}
+                                                    <h3 className="text-lg font-black text-slate-950">
+                                                        {property.name}
+                                                    </h3>
+
+                                                    <p className="text-sm font-semibold text-slate-500">
+                                                        {propertyLeases.length} lease(s) •{" "}
+                                                        {activeLeases.length} active •{" "}
+                                                        {endedLeases.length} ended
                                                     </p>
                                                 </div>
                                             </div>
-                                        </td>
 
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                <DoorOpen size={16} className="text-emerald-600" />
-                                                {lease.unit.property.name} - Unit{" "}
-                                                {lease.unit.unitNumber}
+                                            <div className="flex items-center gap-3">
+                                                <div className="rounded-2xl bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-700">
+                                                    Active Rent: KES{" "}
+                                                    {propertyMonthlyRent.toLocaleString()}
+                                                </div>
+
+                                                <ChevronDown
+                                                    size={20}
+                                                    className="text-slate-500 transition duration-300 group-open:rotate-180"
+                                                />
                                             </div>
-                                        </td>
+                                        </div>
+                                    </summary>
 
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-black text-slate-700">
-                                                <Wallet size={16} className="text-emerald-600" />
-                                                KES{" "}
-                                                {Number(lease.monthlyRent).toLocaleString()}
-                                            </div>
-                                        </td>
+                                    <div className="overflow-x-auto border-t border-slate-100">
+                                        <table className="w-full min-w-[1000px] text-left">
+                                            <thead className="bg-slate-50 text-xs font-black uppercase tracking-wider text-slate-500">
+                                                <tr>
+                                                    <th className="px-6 py-4">Tenant</th>
+                                                    <th className="px-6 py-4">Unit</th>
+                                                    <th className="px-6 py-4">Monthly Rent</th>
+                                                    <th className="px-6 py-4">Charges</th>
+                                                    <th className="px-6 py-4">Deposit</th>
+                                                    <th className="px-6 py-4">Start Date</th>
+                                                    <th className="px-6 py-4">End Date</th>
+                                                    <th className="px-6 py-4">Status</th>
+                                                    <th className="px-6 py-4">Actions</th>
+                                                </tr>
+                                            </thead>
 
-                                        <td className="px-6 py-4 text-sm font-semibold text-slate-600">
-                                            <div>
-                                                Garbage: KES{" "}
-                                                {Number(lease.garbageCharge).toLocaleString()}
-                                            </div>
-                                            <div>
-                                                Security: KES{" "}
-                                                {Number(lease.securityCharge).toLocaleString()}
-                                            </div>
-                                            <div>
-                                                Service: KES{" "}
-                                                {Number(lease.serviceCharge).toLocaleString()}
-                                            </div>
-                                        </td>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {propertyLeases.length === 0 ? (
+                                                    <tr>
+                                                        <td
+                                                            colSpan={9}
+                                                            className="px-6 py-10 text-center text-sm font-bold text-slate-500"
+                                                        >
+                                                            No leases for this property.
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    propertyLeases.map((lease) => (
+                                                        <tr
+                                                            key={lease.id}
+                                                            className="transition hover:bg-slate-50"
+                                                        >
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                                                                        <User size={20} />
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="font-black text-slate-950">
+                                                                            {lease.tenant.name}
+                                                                        </p>
+                                                                        <p className="text-xs font-semibold text-slate-400">
+                                                                            {lease.tenant.phone}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
 
-                                        <td className="px-6 py-4 text-sm font-semibold text-slate-600">
-                                            KES {Number(lease.depositAmount).toLocaleString()}
-                                        </td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                                                    <DoorOpen
+                                                                        size={16}
+                                                                        className="text-emerald-600"
+                                                                    />
+                                                                    Unit {lease.unit.unitNumber}
+                                                                </div>
+                                                            </td>
 
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                <CalendarDays size={16} className="text-emerald-600" />
-                                                {new Date(lease.startDate).toLocaleDateString()}
-                                            </div>
-                                        </td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-2 text-sm font-black text-slate-700">
+                                                                    <Wallet
+                                                                        size={16}
+                                                                        className="text-emerald-600"
+                                                                    />
+                                                                    KES{" "}
+                                                                    {Number(
+                                                                        lease.monthlyRent
+                                                                    ).toLocaleString()}
+                                                                </div>
+                                                            </td>
 
-                                        <td className="px-6 py-4 text-sm font-semibold text-slate-500">
-                                            {lease.endDate
-                                                ? new Date(lease.endDate).toLocaleDateString()
-                                                : "-"}
-                                        </td>
+                                                            <td className="px-6 py-4 text-sm font-semibold text-slate-600">
+                                                                <div>
+                                                                    Garbage: KES{" "}
+                                                                    {Number(
+                                                                        lease.garbageCharge
+                                                                    ).toLocaleString()}
+                                                                </div>
+                                                                <div>
+                                                                    Security: KES{" "}
+                                                                    {Number(
+                                                                        lease.securityCharge
+                                                                    ).toLocaleString()}
+                                                                </div>
+                                                                <div>
+                                                                    Service: KES{" "}
+                                                                    {Number(
+                                                                        lease.serviceCharge
+                                                                    ).toLocaleString()}
+                                                                </div>
+                                                            </td>
 
-                                        <td className="px-6 py-4">
-                                            <span
-                                                className={`rounded-full px-3 py-1 text-xs font-black ${statusStyle(
-                                                    lease.status
-                                                )}`}
-                                            >
-                                                {lease.status}
-                                            </span>
-                                        </td>
+                                                            <td className="px-6 py-4 text-sm font-semibold text-slate-600">
+                                                                KES{" "}
+                                                                {Number(
+                                                                    lease.depositAmount
+                                                                ).toLocaleString()}
+                                                            </td>
 
-                                        <td className="px-6 py-4">
-                                            <div className="flex gap-2">
-                                                <Link
-                                                    href={`/dashboard/company/leases/${lease.id}/agreement`}
-                                                    className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-600 hover:text-white"
-                                                >
-                                                    Agreement
-                                                </Link>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                                                    <CalendarDays
+                                                                        size={16}
+                                                                        className="text-emerald-600"
+                                                                    />
+                                                                    {new Date(
+                                                                        lease.startDate
+                                                                    ).toLocaleDateString()}
+                                                                </div>
+                                                            </td>
 
-                                                <EditLeaseModal lease={lease} />
+                                                            <td className="px-6 py-4 text-sm font-semibold text-slate-500">
+                                                                {lease.endDate
+                                                                    ? new Date(
+                                                                        lease.endDate
+                                                                    ).toLocaleDateString()
+                                                                    : "-"}
+                                                            </td>
 
-                                                {lease.status === "ACTIVE" && (
-                                                    <EndLeaseButton leaseId={lease.id} />
+                                                            <td className="px-6 py-4">
+                                                                <span
+                                                                    className={`rounded-full px-3 py-1 text-xs font-black ${statusStyle(
+                                                                        lease.status
+                                                                    )}`}
+                                                                >
+                                                                    {lease.status}
+                                                                </span>
+                                                            </td>
+
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex gap-2">
+                                                                    <Link
+                                                                        href={`/dashboard/company/leases/${lease.id}/agreement`}
+                                                                        className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-600 hover:text-white"
+                                                                    >
+                                                                        Agreement
+                                                                    </Link>
+
+                                                                    <EditLeaseModal lease={lease} />
+
+                                                                    {lease.status === "ACTIVE" && (
+                                                                        <EndLeaseButton
+                                                                            leaseId={lease.id}
+                                                                        />
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))
                                                 )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </details>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         </main>
     );

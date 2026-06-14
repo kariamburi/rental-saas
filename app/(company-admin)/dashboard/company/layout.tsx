@@ -12,7 +12,7 @@ export default function CompanyDashboardLayout({
             </aside>
 
             <section className="min-w-0 flex-1">
-                <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/80 px-4 py-4 backdrop-blur md:px-6">
+                <header className="sticky top-0 z-30 border-b border-slate-200 bg-white px-4 py-4 md:px-6">
                     <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
                             <CompanyMobileMenu />

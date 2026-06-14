@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { DoorOpen, IdCard, Phone, User } from "lucide-react";
+import {
+    Building2,
+    ChevronDown,
+    DoorOpen,
+    IdCard,
+    Phone,
+    User,
+} from "lucide-react";
 import AddTenantModal from "./AddTenantModal";
 import Link from "next/link";
 import { getAuthUser } from "@/lib/auth";
@@ -32,6 +39,11 @@ export default async function CompanyTenantsPage({
     });
 
     if (!company) redirect("/dashboard");
+
+    const properties = await prisma.property.findMany({
+        where: { companyId: user.companyId },
+        orderBy: { name: "asc" },
+    });
 
     const units = await prisma.unit.findMany({
         where: { companyId: user.companyId },
@@ -79,120 +91,209 @@ export default async function CompanyTenantsPage({
                 />
             </div>
 
-            <div className="mt-8 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-100 px-6 py-5">
+            <div className="mt-8">
+                <div className="mb-5">
                     <h2 className="text-lg font-black text-slate-950">Tenant List</h2>
                     <p className="text-sm text-slate-500">
-                        All tenants registered under this company
+                        Tenants grouped by property. Click a property to expand.
                     </p>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full min-w-[900px] text-left">
-                        <thead className="bg-slate-50 text-xs font-black uppercase tracking-wider text-slate-500">
-                            <tr>
-                                <th className="px-6 py-4">Tenant</th>
-                                <th className="px-6 py-4">Phone</th>
-                                <th className="px-6 py-4">ID Number</th>
-                                <th className="px-6 py-4">Unit</th>
-                                <th className="px-6 py-4">Move-in</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4">Action</th>
-                            </tr>
-                        </thead>
+                {tenants.length === 0 ? (
+                    <div className="rounded-[2rem] border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                            <User size={26} />
+                        </div>
 
-                        <tbody className="divide-y divide-slate-100">
-                            {tenants.length === 0 ? (
-                                <tr>
-                                    <td colSpan={7} className="px-6 py-12 text-center">
-                                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                                            <User size={26} />
-                                        </div>
+                        <h3 className="mt-4 text-lg font-black text-slate-950">
+                            No tenants yet
+                        </h3>
 
-                                        <h3 className="mt-4 text-lg font-black text-slate-950">
-                                            No tenants yet
-                                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                            Add your first tenant and assign a vacant unit.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {properties.map((property) => {
+                            const propertyTenants = tenants.filter(
+                                (tenant) => tenant.unit?.property?.id === property.id
+                            );
 
-                                        <p className="mt-1 text-sm text-slate-500">
-                                            Add your first tenant and assign a vacant unit.
-                                        </p>
-                                    </td>
-                                </tr>
-                            ) : (
-                                tenants.map((tenant) => (
-                                    <tr key={tenant.id} className="transition hover:bg-slate-50">
-                                        <td className="px-6 py-4">
+                            const activeTenants = propertyTenants.filter(
+                                (tenant) => tenant.status === "ACTIVE"
+                            );
+
+                            const noticeTenants = propertyTenants.filter(
+                                (tenant) => tenant.status === "NOTICE"
+                            );
+
+                            const vacatedTenants = propertyTenants.filter(
+                                (tenant) => tenant.status === "VACATED"
+                            );
+
+                            return (
+                                <details
+                                    key={property.id}
+                                    className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm"
+                                >
+                                    <summary className="cursor-pointer list-none px-6 py-5 transition hover:bg-slate-50">
+                                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                             <div className="flex items-center gap-3">
-                                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                                                    <User size={20} />
+                                                <div className="rounded-xl bg-emerald-50 p-2 text-emerald-600">
+                                                    <Building2 size={18} />
                                                 </div>
 
                                                 <div>
-                                                    <Link
-                                                        href={`/dashboard/company/tenants/${tenant.id}`}
-                                                        className="font-black text-slate-950 hover:text-emerald-600"
-                                                    >
-                                                        {tenant.name}
-                                                    </Link>
+                                                    <h3 className="text-lg font-black text-slate-950">
+                                                        {property.name}
+                                                    </h3>
 
-                                                    <p className="text-xs font-semibold text-slate-400">
-                                                        {tenant.email || "No email"}
+                                                    <p className="text-sm font-semibold text-slate-500">
+                                                        {propertyTenants.length} tenant(s) •{" "}
+                                                        {activeTenants.length} active •{" "}
+                                                        {noticeTenants.length} notice •{" "}
+                                                        {vacatedTenants.length} vacated
                                                     </p>
                                                 </div>
                                             </div>
-                                        </td>
 
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                <Phone size={16} className="text-emerald-600" />
-                                                {tenant.phone}
+                                            <div className="flex items-center gap-3">
+                                                <div className="rounded-2xl bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-700">
+                                                    Active: {activeTenants.length}
+                                                </div>
+
+                                                <ChevronDown
+                                                    size={20}
+                                                    className="text-slate-500 transition duration-300 group-open:rotate-180"
+                                                />
                                             </div>
-                                        </td>
+                                        </div>
+                                    </summary>
 
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                <IdCard size={16} className="text-emerald-600" />
-                                                {tenant.idNumber || "-"}
-                                            </div>
-                                        </td>
+                                    <div className="overflow-x-auto border-t border-slate-100">
+                                        <table className="w-full min-w-[900px] text-left">
+                                            <thead className="bg-slate-50 text-xs font-black uppercase tracking-wider text-slate-500">
+                                                <tr>
+                                                    <th className="px-6 py-4">Tenant</th>
+                                                    <th className="px-6 py-4">Phone</th>
+                                                    <th className="px-6 py-4">ID Number</th>
+                                                    <th className="px-6 py-4">Unit</th>
+                                                    <th className="px-6 py-4">Move-in</th>
+                                                    <th className="px-6 py-4">Status</th>
+                                                    <th className="px-6 py-4">Action</th>
+                                                </tr>
+                                            </thead>
 
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                <DoorOpen size={16} className="text-emerald-600" />
-                                                {tenant.unit
-                                                    ? `${tenant.unit.property.name} - Unit ${tenant.unit.unitNumber}`
-                                                    : "-"}
-                                            </div>
-                                        </td>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {propertyTenants.length === 0 ? (
+                                                    <tr>
+                                                        <td
+                                                            colSpan={7}
+                                                            className="px-6 py-10 text-center text-sm font-bold text-slate-500"
+                                                        >
+                                                            No tenants for this property.
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    propertyTenants.map((tenant) => (
+                                                        <tr
+                                                            key={tenant.id}
+                                                            className="transition hover:bg-slate-50"
+                                                        >
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                                                                        <User size={20} />
+                                                                    </div>
 
-                                        <td className="px-6 py-4 text-sm font-semibold text-slate-500">
-                                            {tenant.moveInDate
-                                                ? new Date(tenant.moveInDate).toLocaleDateString()
-                                                : "-"}
-                                        </td>
+                                                                    <div>
+                                                                        <Link
+                                                                            href={`/dashboard/company/tenants/${tenant.id}`}
+                                                                            className="font-black text-slate-950 hover:text-emerald-600"
+                                                                        >
+                                                                            {tenant.name}
+                                                                        </Link>
 
-                                        <td className="px-6 py-4">
-                                            <span
-                                                className={`rounded-full px-3 py-1 text-xs font-black ${statusStyle(
-                                                    tenant.status
-                                                )}`}
-                                            >
-                                                {tenant.status}
-                                            </span>
-                                        </td>
+                                                                        <p className="text-xs font-semibold text-slate-400">
+                                                                            {tenant.email || "No email"}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
 
-                                        <td className="px-6 py-4">
-                                            <div className="flex gap-1">
-                                                <EditTenantModal tenant={tenant} units={units} />
-                                                <DeleteTenantButton tenantId={tenant.id} />
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                                                    <Phone
+                                                                        size={16}
+                                                                        className="text-emerald-600"
+                                                                    />
+                                                                    {tenant.phone}
+                                                                </div>
+                                                            </td>
+
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                                                    <IdCard
+                                                                        size={16}
+                                                                        className="text-emerald-600"
+                                                                    />
+                                                                    {tenant.idNumber || "-"}
+                                                                </div>
+                                                            </td>
+
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                                                    <DoorOpen
+                                                                        size={16}
+                                                                        className="text-emerald-600"
+                                                                    />
+                                                                    {tenant.unit
+                                                                        ? `Unit ${tenant.unit.unitNumber}`
+                                                                        : "-"}
+                                                                </div>
+                                                            </td>
+
+                                                            <td className="px-6 py-4 text-sm font-semibold text-slate-500">
+                                                                {tenant.moveInDate
+                                                                    ? new Date(
+                                                                        tenant.moveInDate
+                                                                    ).toLocaleDateString()
+                                                                    : "-"}
+                                                            </td>
+
+                                                            <td className="px-6 py-4">
+                                                                <span
+                                                                    className={`rounded-full px-3 py-1 text-xs font-black ${statusStyle(
+                                                                        tenant.status
+                                                                    )}`}
+                                                                >
+                                                                    {tenant.status}
+                                                                </span>
+                                                            </td>
+
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex gap-1">
+                                                                    <EditTenantModal
+                                                                        tenant={tenant}
+                                                                        units={units}
+                                                                    />
+                                                                    <DeleteTenantButton
+                                                                        tenantId={tenant.id}
+                                                                    />
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </details>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         </main>
     );

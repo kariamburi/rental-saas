@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import {
     Building2,
     CalendarDays,
+    ChevronDown,
     ClipboardCheck,
     DoorOpen,
     User,
@@ -12,7 +13,6 @@ import {
 import AddInspectionModal from "./AddInspectionModal";
 import Link from "next/link";
 import UpdateInspectionStatus from "./UpdateInspectionStatus";
-
 
 export default async function InspectionsPage() {
     const user = await getAuthUser();
@@ -26,7 +26,7 @@ export default async function InspectionsPage() {
     const [properties, units, tenants, inspections] = await Promise.all([
         prisma.property.findMany({
             where: { companyId: user.companyId },
-            orderBy: { createdAt: "desc" },
+            orderBy: { name: "asc" },
         }),
 
         prisma.unit.findMany({
@@ -96,128 +96,198 @@ export default async function InspectionsPage() {
                 />
             </div>
 
-            <section className="mt-8 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-100 px-6 py-5">
+            <section className="mt-8">
+                <div className="mb-5">
                     <h2 className="text-lg font-black text-slate-950">
                         Inspection List
                     </h2>
                     <p className="text-sm text-slate-500">
-                        Property and unit inspection records
+                        Inspections grouped by property. Click a property to expand.
                     </p>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1050px] text-left">
-                        <thead className="bg-slate-50 text-xs font-black uppercase tracking-wider text-slate-500">
-                            <tr>
-                                <th className="px-6 py-4">Property</th>
-                                <th className="px-6 py-4">Unit</th>
-                                <th className="px-6 py-4">Tenant</th>
-                                <th className="px-6 py-4">Type</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4">Items</th>
-                                <th className="px-6 py-4">Date</th>
-                                <th className="px-6 py-4">Inspected By</th>
-                                <th className="px-6 py-4">Action</th>
-                            </tr>
-                        </thead>
+                {inspections.length === 0 ? (
+                    <div className="rounded-[2rem] border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                            <ClipboardCheck size={26} />
+                        </div>
+                        <h3 className="mt-4 text-lg font-black text-slate-950">
+                            No inspections yet
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                            Add the first property or unit inspection.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {properties.map((property) => {
+                            const propertyInspections = inspections.filter(
+                                (inspection) => inspection.propertyId === property.id
+                            );
 
-                        <tbody className="divide-y divide-slate-100">
-                            {inspections.length === 0 ? (
-                                <tr>
-                                    <td colSpan={9} className="px-6 py-12 text-center">
-                                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                                            <ClipboardCheck size={26} />
+                            const pending = propertyInspections.filter(
+                                (inspection) => inspection.status === "PENDING"
+                            ).length;
+
+                            const completed = propertyInspections.filter(
+                                (inspection) => inspection.status === "COMPLETED"
+                            ).length;
+
+                            const issuesFound = propertyInspections.filter(
+                                (inspection) => inspection.status === "ISSUES_FOUND"
+                            ).length;
+
+                            return (
+                                <details
+                                    key={property.id}
+                                    className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm"
+                                >
+                                    <summary className="cursor-pointer list-none px-6 py-5 transition hover:bg-slate-50">
+                                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="rounded-xl bg-emerald-50 p-2 text-emerald-600">
+                                                    <Building2 size={18} />
+                                                </div>
+
+                                                <div>
+                                                    <h3 className="text-lg font-black text-slate-950">
+                                                        {property.name}
+                                                    </h3>
+
+                                                    <p className="text-sm font-semibold text-slate-500">
+                                                        {propertyInspections.length} inspection(s) •{" "}
+                                                        {pending} pending • {completed} completed •{" "}
+                                                        {issuesFound} issues found
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3">
+                                                <div className="rounded-2xl bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-700">
+                                                    Items:{" "}
+                                                    {propertyInspections.reduce(
+                                                        (sum, inspection) =>
+                                                            sum + inspection.items.length,
+                                                        0
+                                                    )}
+                                                </div>
+
+                                                <ChevronDown
+                                                    size={20}
+                                                    className="text-slate-500 transition duration-300 group-open:rotate-180"
+                                                />
+                                            </div>
                                         </div>
-                                        <h3 className="mt-4 text-lg font-black text-slate-950">
-                                            No inspections yet
-                                        </h3>
-                                        <p className="mt-1 text-sm text-slate-500">
-                                            Add the first property or unit inspection.
-                                        </p>
-                                    </td>
-                                </tr>
-                            ) : (
-                                inspections.map((inspection) => (
-                                    <tr
-                                        key={inspection.id}
-                                        className="transition hover:bg-slate-50"
-                                    >
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                <Building2 size={16} className="text-emerald-600" />
-                                                {inspection.property.name}
-                                            </div>
-                                        </td>
+                                    </summary>
 
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                <DoorOpen size={16} className="text-emerald-600" />
-                                                {inspection.unit
-                                                    ? `Unit ${inspection.unit.unitNumber}`
-                                                    : "-"}
-                                            </div>
-                                        </td>
+                                    <div className="overflow-x-auto border-t border-slate-100">
+                                        <table className="w-full min-w-[1050px] text-left">
+                                            <thead className="bg-slate-50 text-xs font-black uppercase tracking-wider text-slate-500">
+                                                <tr>
+                                                    <th className="px-6 py-4">Unit</th>
+                                                    <th className="px-6 py-4">Tenant</th>
+                                                    <th className="px-6 py-4">Type</th>
+                                                    <th className="px-6 py-4">Status</th>
+                                                    <th className="px-6 py-4">Items</th>
+                                                    <th className="px-6 py-4">Date</th>
+                                                    <th className="px-6 py-4">Inspected By</th>
+                                                    <th className="px-6 py-4">Action</th>
+                                                </tr>
+                                            </thead>
 
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                <User size={16} className="text-emerald-600" />
-                                                {inspection.tenant ? inspection.tenant.name : "-"}
-                                            </div>
-                                        </td>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {propertyInspections.length === 0 ? (
+                                                    <tr>
+                                                        <td
+                                                            colSpan={8}
+                                                            className="px-6 py-10 text-center text-sm font-bold text-slate-500"
+                                                        >
+                                                            No inspections for this property.
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    propertyInspections.map((inspection) => (
+                                                        <tr
+                                                            key={inspection.id}
+                                                            className="transition hover:bg-slate-50"
+                                                        >
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                                                    <DoorOpen
+                                                                        size={16}
+                                                                        className="text-emerald-600"
+                                                                    />
+                                                                    {inspection.unit
+                                                                        ? `Unit ${inspection.unit.unitNumber}`
+                                                                        : "-"}
+                                                                </div>
+                                                            </td>
 
-                                        <td className="px-6 py-4 text-sm font-black text-slate-700">
-                                            {inspection.type}
-                                        </td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                                                    <User
+                                                                        size={16}
+                                                                        className="text-emerald-600"
+                                                                    />
+                                                                    {inspection.tenant
+                                                                        ? inspection.tenant.name
+                                                                        : "-"}
+                                                                </div>
+                                                            </td>
 
-                                        <td className="px-6 py-4">
+                                                            <td className="px-6 py-4 text-sm font-black text-slate-700">
+                                                                {inspection.type}
+                                                            </td>
 
-                                            <UpdateInspectionStatus
-                                                inspectionId={inspection.id}
-                                                currentStatus={inspection.status}
-                                            />
-                                        </td>
+                                                            <td className="px-6 py-4">
+                                                                <UpdateInspectionStatus
+                                                                    inspectionId={inspection.id}
+                                                                    currentStatus={inspection.status}
+                                                                />
+                                                            </td>
 
-                                        <td className="px-6 py-4 text-sm font-semibold text-slate-600">
-                                            {inspection.items.length}
-                                        </td>
+                                                            <td className="px-6 py-4 text-sm font-semibold text-slate-600">
+                                                                {inspection.items.length}
+                                                            </td>
 
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                <CalendarDays size={16} className="text-emerald-600" />
-                                                {new Date(
-                                                    inspection.inspectionDate
-                                                ).toLocaleDateString()}
-                                            </div>
-                                        </td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                                                    <CalendarDays
+                                                                        size={16}
+                                                                        className="text-emerald-600"
+                                                                    />
+                                                                    {new Date(
+                                                                        inspection.inspectionDate
+                                                                    ).toLocaleDateString()}
+                                                                </div>
+                                                            </td>
 
-                                        <td className="px-6 py-4 text-sm font-semibold text-slate-500">
-                                            {inspection.inspectedBy || "-"}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <Link
-                                                href={`/dashboard/company/inspections/${inspection.id}`}
-                                                className="rounded-xl cursor-pointer bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-600 hover:text-white"
-                                            >
-                                                View Report
-                                            </Link>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                                            <td className="px-6 py-4 text-sm font-semibold text-slate-500">
+                                                                {inspection.inspectedBy || "-"}
+                                                            </td>
+
+                                                            <td className="px-6 py-4">
+                                                                <Link
+                                                                    href={`/dashboard/company/inspections/${inspection.id}`}
+                                                                    className="cursor-pointer rounded-xl bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-600 hover:text-white"
+                                                                >
+                                                                    View Report
+                                                                </Link>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </details>
+                            );
+                        })}
+                    </div>
+                )}
             </section>
         </main>
     );
-}
-
-function statusStyle(status: string) {
-    if (status === "COMPLETED") return "bg-emerald-50 text-emerald-700";
-    if (status === "ISSUES_FOUND") return "bg-red-50 text-red-700";
-    if (status === "PENDING") return "bg-amber-50 text-amber-700";
-    return "bg-slate-100 text-slate-700";
 }
 
 function SummaryCard({

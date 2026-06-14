@@ -6,6 +6,7 @@ import { Roles } from "@/lib/roles";
 import {
     AlertTriangle,
     CalendarDays,
+    ChevronDown,
     DoorOpen,
     FileText,
     Phone,
@@ -25,6 +26,11 @@ export default async function ArrearsPage() {
     if (!user.companyId) {
         redirect("/dashboard");
     }
+
+    const properties = await prisma.property.findMany({
+        where: { companyId: user.companyId },
+        orderBy: { name: "asc" },
+    });
 
     const invoices = await prisma.invoice.findMany({
         where: {
@@ -72,145 +78,235 @@ export default async function ArrearsPage() {
                 />
             </div>
 
-            <section className="mt-8 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-100 p-6">
+            <section className="mt-8">
+                <div className="mb-5">
                     <h2 className="text-lg font-black text-slate-950">
                         Arrears List
                     </h2>
                     <p className="text-sm text-slate-500">
-                        All invoices with outstanding balances.
+                        Arrears grouped by property. Click a property to expand.
                     </p>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1100px] text-left">
-                        <thead className="bg-slate-50 text-xs font-black uppercase tracking-wider text-slate-500">
-                            <tr>
-                                <th className="px-6 py-4">Tenant</th>
-                                <th className="px-6 py-4">Phone</th>
-                                <th className="px-6 py-4">Unit</th>
-                                <th className="px-6 py-4">Invoice</th>
-                                <th className="px-6 py-4">Amount</th>
-                                <th className="px-6 py-4">Paid</th>
-                                <th className="px-6 py-4">Balance</th>
-                                <th className="px-6 py-4">Due Date</th>
-                                <th className="px-6 py-4">Days Overdue</th>
-                                <th className="px-6 py-4">Action</th>
-                            </tr>
-                        </thead>
+                {invoices.length === 0 ? (
+                    <div className="rounded-[2rem] border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                            <Wallet size={26} />
+                        </div>
+                        <h3 className="mt-4 text-lg font-black text-slate-950">
+                            No arrears found
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                            All invoices are fully paid.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {properties.map((property) => {
+                            const propertyInvoices = invoices.filter(
+                                (invoice) => invoice.unit.property.id === property.id
+                            );
 
-                        <tbody className="divide-y divide-slate-100">
-                            {invoices.length === 0 ? (
-                                <tr>
-                                    <td colSpan={10} className="px-6 py-12 text-center">
-                                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                                            <Wallet size={26} />
+                            const propertyTotalArrears = propertyInvoices.reduce(
+                                (sum, invoice) => sum + Number(invoice.balance || 0),
+                                0
+                            );
+
+                            const propertyOverdue = propertyInvoices.filter(
+                                (invoice) => getDaysOverdue(invoice.dueDate) > 0
+                            );
+
+                            return (
+                                <details
+                                    key={property.id}
+                                    className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm"
+                                >
+                                    <summary className="cursor-pointer list-none px-6 py-5 transition hover:bg-slate-50">
+                                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="rounded-xl bg-red-50 p-2 text-red-600">
+                                                    <AlertTriangle size={18} />
+                                                </div>
+
+                                                <div>
+                                                    <h3 className="text-lg font-black text-slate-950">
+                                                        {property.name}
+                                                    </h3>
+
+                                                    <p className="text-sm font-semibold text-slate-500">
+                                                        {propertyInvoices.length} invoice(s) •{" "}
+                                                        {propertyOverdue.length} overdue
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3">
+                                                <div className="rounded-2xl bg-red-50 px-4 py-2 text-sm font-black text-red-700">
+                                                    Arrears: KES{" "}
+                                                    {propertyTotalArrears.toLocaleString()}
+                                                </div>
+
+                                                <ChevronDown
+                                                    size={20}
+                                                    className="text-slate-500 transition duration-300 group-open:rotate-180"
+                                                />
+                                            </div>
                                         </div>
-                                        <h3 className="mt-4 text-lg font-black text-slate-950">
-                                            No arrears found
-                                        </h3>
-                                        <p className="mt-1 text-sm text-slate-500">
-                                            All invoices are fully paid.
-                                        </p>
-                                    </td>
-                                </tr>
-                            ) : (
-                                invoices.map((invoice) => {
-                                    const daysOverdue = getDaysOverdue(invoice.dueDate);
+                                    </summary>
 
-                                    return (
-                                        <tr
-                                            key={invoice.id}
-                                            className="transition hover:bg-slate-50"
-                                        >
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                    <User size={16} className="text-emerald-600" />
-                                                    {invoice.tenant.name}
-                                                </div>
-                                            </td>
+                                    <div className="overflow-x-auto border-t border-slate-100">
+                                        <table className="w-full min-w-[1100px] text-left">
+                                            <thead className="bg-slate-50 text-xs font-black uppercase tracking-wider text-slate-500">
+                                                <tr>
+                                                    <th className="px-6 py-4">Tenant</th>
+                                                    <th className="px-6 py-4">Phone</th>
+                                                    <th className="px-6 py-4">Unit</th>
+                                                    <th className="px-6 py-4">Invoice</th>
+                                                    <th className="px-6 py-4">Amount</th>
+                                                    <th className="px-6 py-4">Paid</th>
+                                                    <th className="px-6 py-4">Balance</th>
+                                                    <th className="px-6 py-4">Due Date</th>
+                                                    <th className="px-6 py-4">Days Overdue</th>
+                                                    <th className="px-6 py-4">Action</th>
+                                                </tr>
+                                            </thead>
 
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                    <Phone size={16} className="text-emerald-600" />
-                                                    {invoice.tenant.phone}
-                                                </div>
-                                            </td>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {propertyInvoices.length === 0 ? (
+                                                    <tr>
+                                                        <td
+                                                            colSpan={10}
+                                                            className="px-6 py-10 text-center text-sm font-bold text-slate-500"
+                                                        >
+                                                            No arrears for this property.
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    propertyInvoices.map((invoice) => {
+                                                        const daysOverdue = getDaysOverdue(
+                                                            invoice.dueDate
+                                                        );
 
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                    <DoorOpen size={16} className="text-emerald-600" />
-                                                    {invoice.unit.property.name} - Unit{" "}
-                                                    {invoice.unit.unitNumber}
-                                                </div>
-                                            </td>
+                                                        return (
+                                                            <tr
+                                                                key={invoice.id}
+                                                                className="transition hover:bg-slate-50"
+                                                            >
+                                                                <td className="px-6 py-4">
+                                                                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                                                        <User
+                                                                            size={16}
+                                                                            className="text-emerald-600"
+                                                                        />
+                                                                        {invoice.tenant.name}
+                                                                    </div>
+                                                                </td>
 
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-2 text-sm font-black text-slate-700">
-                                                    <FileText size={16} className="text-emerald-600" />
-                                                    {invoice.invoiceNo}
-                                                </div>
-                                            </td>
+                                                                <td className="px-6 py-4">
+                                                                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                                                        <Phone
+                                                                            size={16}
+                                                                            className="text-emerald-600"
+                                                                        />
+                                                                        {invoice.tenant.phone}
+                                                                    </div>
+                                                                </td>
 
-                                            <td className="px-6 py-4 text-sm font-black text-slate-700">
-                                                KES {Number(invoice.amount).toLocaleString()}
-                                            </td>
+                                                                <td className="px-6 py-4">
+                                                                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                                                        <DoorOpen
+                                                                            size={16}
+                                                                            className="text-emerald-600"
+                                                                        />
+                                                                        Unit {invoice.unit.unitNumber}
+                                                                    </div>
+                                                                </td>
 
-                                            <td className="px-6 py-4 text-sm font-semibold text-slate-600">
-                                                KES {Number(invoice.paidAmount).toLocaleString()}
-                                            </td>
+                                                                <td className="px-6 py-4">
+                                                                    <div className="flex items-center gap-2 text-sm font-black text-slate-700">
+                                                                        <FileText
+                                                                            size={16}
+                                                                            className="text-emerald-600"
+                                                                        />
+                                                                        {invoice.invoiceNo}
+                                                                    </div>
+                                                                </td>
 
-                                            <td className="px-6 py-4 text-sm font-black text-red-700">
-                                                KES {Number(invoice.balance).toLocaleString()}
-                                            </td>
+                                                                <td className="px-6 py-4 text-sm font-black text-slate-700">
+                                                                    KES{" "}
+                                                                    {Number(
+                                                                        invoice.amount
+                                                                    ).toLocaleString()}
+                                                                </td>
 
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                    <CalendarDays
-                                                        size={16}
-                                                        className="text-emerald-600"
-                                                    />
-                                                    {new Date(invoice.dueDate).toLocaleDateString()}
-                                                </div>
-                                            </td>
+                                                                <td className="px-6 py-4 text-sm font-semibold text-slate-600">
+                                                                    KES{" "}
+                                                                    {Number(
+                                                                        invoice.paidAmount
+                                                                    ).toLocaleString()}
+                                                                </td>
 
-                                            <td className="px-6 py-4">
-                                                <span
-                                                    className={`rounded-full px-3 py-1 text-xs font-black ${daysOverdue > 0
-                                                        ? "bg-red-50 text-red-700"
-                                                        : "bg-amber-50 text-amber-700"
-                                                        }`}
-                                                >
-                                                    {daysOverdue > 0
-                                                        ? `${daysOverdue} day(s)`
-                                                        : "Not overdue"}
-                                                </span>
-                                            </td>
+                                                                <td className="px-6 py-4 text-sm font-black text-red-700">
+                                                                    KES{" "}
+                                                                    {Number(
+                                                                        invoice.balance
+                                                                    ).toLocaleString()}
+                                                                </td>
 
-                                            <td className="px-6 py-4">
-                                                <div className="flex gap-2">
-                                                    <Link
-                                                        href="/dashboard/company/payments"
-                                                        className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-600 hover:text-white"
-                                                    >
-                                                        Record Payment
-                                                    </Link>
+                                                                <td className="px-6 py-4">
+                                                                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                                                        <CalendarDays
+                                                                            size={16}
+                                                                            className="text-emerald-600"
+                                                                        />
+                                                                        {new Date(
+                                                                            invoice.dueDate
+                                                                        ).toLocaleDateString()}
+                                                                    </div>
+                                                                </td>
 
-                                                    <Link
-                                                        href={`/dashboard/company/invoices/${invoice.id}/print`}
-                                                        className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-950 hover:text-white"
-                                                    >
-                                                        Print
-                                                    </Link>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                                                <td className="px-6 py-4">
+                                                                    <span
+                                                                        className={`rounded-full px-3 py-1 text-xs font-black ${daysOverdue > 0
+                                                                            ? "bg-red-50 text-red-700"
+                                                                            : "bg-amber-50 text-amber-700"
+                                                                            }`}
+                                                                    >
+                                                                        {daysOverdue > 0
+                                                                            ? `${daysOverdue} day(s)`
+                                                                            : "Not overdue"}
+                                                                    </span>
+                                                                </td>
+
+                                                                <td className="px-6 py-4">
+                                                                    <div className="flex gap-2">
+                                                                        <Link
+                                                                            href="/dashboard/company/payments"
+                                                                            className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-600 hover:text-white"
+                                                                        >
+                                                                            Record Payment
+                                                                        </Link>
+
+                                                                        <Link
+                                                                            href={`/dashboard/company/invoices/${invoice.id}/print`}
+                                                                            className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-950 hover:text-white"
+                                                                        >
+                                                                            Print
+                                                                        </Link>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </details>
+                            );
+                        })}
+                    </div>
+                )}
             </section>
         </main>
     );

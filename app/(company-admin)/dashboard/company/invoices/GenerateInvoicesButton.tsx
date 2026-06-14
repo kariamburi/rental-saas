@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { FilePlus2, MessageCircle } from "lucide-react";
 
 type PropertyItem = {
@@ -9,10 +9,19 @@ type PropertyItem = {
     name: string;
 };
 
+type TenantItem = {
+    id: string;
+    name: string;
+    propertyId: string;
+    unitNumber: string;
+};
+
 export default function GenerateInvoicesButton({
     properties,
+    tenants,
 }: {
     properties: PropertyItem[];
+    tenants: TenantItem[];
 }) {
     const router = useRouter();
     const now = new Date();
@@ -20,8 +29,14 @@ export default function GenerateInvoicesButton({
     const [year, setYear] = useState(String(now.getFullYear()));
     const [month, setMonth] = useState(String(now.getMonth() + 1));
     const [propertyId, setPropertyId] = useState("ALL");
+    const [tenantId, setTenantId] = useState("ALL");
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState("");
+
+    const filteredTenants = useMemo(() => {
+        if (propertyId === "ALL") return [];
+        return tenants.filter((tenant) => tenant.propertyId === propertyId);
+    }, [propertyId, tenants]);
 
     async function generate() {
         setMessage("");
@@ -35,6 +50,7 @@ export default function GenerateInvoicesButton({
                     year,
                     month,
                     propertyId: propertyId === "ALL" ? null : propertyId,
+                    tenantId: tenantId === "ALL" ? null : tenantId,
                 }),
             });
 
@@ -58,7 +74,7 @@ export default function GenerateInvoicesButton({
 
     return (
         <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-5">
                 <input
                     value={year}
                     onChange={(e) => setYear(e.target.value)}
@@ -82,13 +98,33 @@ export default function GenerateInvoicesButton({
 
                 <select
                     value={propertyId}
-                    onChange={(e) => setPropertyId(e.target.value)}
+                    onChange={(e) => {
+                        setPropertyId(e.target.value);
+                        setTenantId("ALL");
+                    }}
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none"
                 >
                     <option value="ALL">All Properties</option>
                     {properties.map((property) => (
                         <option key={property.id} value={property.id}>
                             {property.name}
+                        </option>
+                    ))}
+                </select>
+
+                <select
+                    value={tenantId}
+                    onChange={(e) => setTenantId(e.target.value)}
+                    disabled={propertyId === "ALL"}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    <option value="ALL">
+                        {propertyId === "ALL" ? "Select property first" : "All Tenants"}
+                    </option>
+
+                    {filteredTenants.map((tenant) => (
+                        <option key={tenant.id} value={tenant.id}>
+                            {tenant.name} - Unit {tenant.unitNumber}
                         </option>
                     ))}
                 </select>

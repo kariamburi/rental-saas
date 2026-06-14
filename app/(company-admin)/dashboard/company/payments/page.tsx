@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { CalendarDays, FileText, User, WalletCards } from "lucide-react";
+import {
+    CalendarDays,
+    ChevronDown,
+    DoorOpen,
+    FileText,
+    User,
+    WalletCards,
+} from "lucide-react";
 import AddPaymentModal from "./AddPaymentModal";
 import Link from "next/link";
 import { getAuthUser } from "@/lib/auth";
@@ -39,9 +46,22 @@ export default async function CompanyPaymentsPage() {
         where: { companyId: user.companyId },
         include: {
             tenant: true,
-            invoice: true,
+            invoice: {
+                include: {
+                    unit: {
+                        include: {
+                            property: true,
+                        },
+                    },
+                },
+            },
         },
         orderBy: { createdAt: "desc" },
+    });
+
+    const properties = await prisma.property.findMany({
+        where: { companyId: user.companyId },
+        orderBy: { name: "asc" },
     });
 
     const totalPaid = payments
@@ -78,124 +98,214 @@ export default async function CompanyPaymentsPage() {
                 />
             </div>
 
-            <div className="mt-8 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-100 px-6 py-5">
+            <div className="mt-8">
+                <div className="mb-5">
                     <h2 className="text-lg font-black text-slate-950">
                         Payment History
                     </h2>
                     <p className="text-sm text-slate-500">
-                        All rent payments recorded under this company
+                        Payments grouped by property. Click a property to expand.
                     </p>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full min-w-[900px] text-left">
-                        <thead className="bg-slate-50 text-xs font-black uppercase tracking-wider text-slate-500">
-                            <tr>
-                                <th className="px-6 py-4">Tenant</th>
-                                <th className="px-6 py-4">Invoice</th>
-                                <th className="px-6 py-4">Amount</th>
-                                <th className="px-6 py-4">Method</th>
-                                <th className="px-6 py-4">Reference</th>
-                                <th className="px-6 py-4">Payment Date</th>
-                                <th className="px-6 py-4">Received By</th>
-                                <th className="px-6 py-4">Receipt</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4">Action</th>
-                            </tr>
-                        </thead>
+                {payments.length === 0 ? (
+                    <div className="rounded-[2rem] border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                            <WalletCards size={26} />
+                        </div>
+                        <h3 className="mt-4 text-lg font-black text-slate-950">
+                            No payments yet
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                            Record rent payments from pending invoices.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {properties.map((property) => {
+                            const propertyPayments = payments.filter(
+                                (payment) =>
+                                    payment.invoice?.unit?.property?.id === property.id
+                            );
 
-                        <tbody className="divide-y divide-slate-100">
-                            {payments.length === 0 ? (
-                                <tr>
-                                    <td colSpan={10} className="px-6 py-12 text-center">
-                                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                                            <WalletCards size={26} />
+                            const activePayments = propertyPayments.filter(
+                                (payment) => payment.status === "ACTIVE"
+                            );
+
+                            const reversedPayments = propertyPayments.filter(
+                                (payment) => payment.status !== "ACTIVE"
+                            );
+
+                            const propertyTotalPaid = activePayments.reduce(
+                                (sum, payment) => sum + Number(payment.amount || 0),
+                                0
+                            );
+
+                            return (
+                                <details
+                                    key={property.id}
+                                    className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm"
+                                >
+                                    <summary className="cursor-pointer list-none px-6 py-5 transition hover:bg-slate-50">
+                                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="rounded-xl bg-emerald-50 p-2 text-emerald-600">
+                                                    <DoorOpen size={18} />
+                                                </div>
+
+                                                <div>
+                                                    <h3 className="text-lg font-black text-slate-950">
+                                                        {property.name}
+                                                    </h3>
+
+                                                    <p className="text-sm font-semibold text-slate-500">
+                                                        {propertyPayments.length} payment(s) •{" "}
+                                                        {activePayments.length} active •{" "}
+                                                        {reversedPayments.length} reversed
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3">
+                                                <div className="rounded-2xl bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-700">
+                                                    Collected: KES{" "}
+                                                    {propertyTotalPaid.toLocaleString()}
+                                                </div>
+
+                                                <ChevronDown
+                                                    size={20}
+                                                    className="text-slate-500 transition duration-300 group-open:rotate-180"
+                                                />
+                                            </div>
                                         </div>
-                                        <h3 className="mt-4 text-lg font-black text-slate-950">
-                                            No payments yet
-                                        </h3>
-                                        <p className="mt-1 text-sm text-slate-500">
-                                            Record rent payments from pending invoices.
-                                        </p>
-                                    </td>
-                                </tr>
-                            ) : (
-                                payments.map((payment) => (
-                                    <tr key={payment.id} className="transition hover:bg-slate-50">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                <User size={16} className="text-emerald-600" />
-                                                {payment.tenant.name}
-                                            </div>
-                                        </td>
+                                    </summary>
 
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-black text-slate-700">
-                                                <FileText size={16} className="text-emerald-600" />
-                                                {payment.invoice.invoiceNo}
-                                            </div>
-                                        </td>
+                                    <div className="overflow-x-auto border-t border-slate-100">
+                                        <table className="w-full min-w-[1000px] text-left">
+                                            <thead className="bg-slate-50 text-xs font-black uppercase tracking-wider text-slate-500">
+                                                <tr>
+                                                    <th className="px-6 py-4">Tenant</th>
+                                                    <th className="px-6 py-4">Invoice</th>
+                                                    <th className="px-6 py-4">Amount</th>
+                                                    <th className="px-6 py-4">Method</th>
+                                                    <th className="px-6 py-4">Reference</th>
+                                                    <th className="px-6 py-4">Payment Date</th>
+                                                    <th className="px-6 py-4">Received By</th>
+                                                    <th className="px-6 py-4">Receipt</th>
+                                                    <th className="px-6 py-4">Status</th>
+                                                    <th className="px-6 py-4">Action</th>
+                                                </tr>
+                                            </thead>
 
-                                        <td className="px-6 py-4 text-sm font-black text-slate-700">
-                                            KES {Number(payment.amount).toLocaleString()}
-                                        </td>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {propertyPayments.length === 0 ? (
+                                                    <tr>
+                                                        <td
+                                                            colSpan={10}
+                                                            className="px-6 py-10 text-center text-sm font-bold text-slate-500"
+                                                        >
+                                                            No payments for this property.
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    propertyPayments.map((payment) => (
+                                                        <tr
+                                                            key={payment.id}
+                                                            className="transition hover:bg-slate-50"
+                                                        >
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                                                    <User
+                                                                        size={16}
+                                                                        className="text-emerald-600"
+                                                                    />
+                                                                    {payment.tenant.name}
+                                                                </div>
+                                                            </td>
 
-                                        <td className="px-6 py-4">
-                                            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
-                                                {payment.method}
-                                            </span>
-                                        </td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-2 text-sm font-black text-slate-700">
+                                                                    <FileText
+                                                                        size={16}
+                                                                        className="text-emerald-600"
+                                                                    />
+                                                                    {payment.invoice.invoiceNo}
+                                                                </div>
+                                                            </td>
 
-                                        <td className="px-6 py-4 text-sm font-semibold text-slate-500">
-                                            {payment.reference || "-"}
-                                        </td>
+                                                            <td className="px-6 py-4 text-sm font-black text-slate-700">
+                                                                KES{" "}
+                                                                {Number(payment.amount).toLocaleString()}
+                                                            </td>
 
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                                                <CalendarDays size={16} className="text-emerald-600" />
-                                                {new Date(payment.paymentDate).toLocaleDateString()}
-                                            </div>
-                                        </td>
+                                                            <td className="px-6 py-4">
+                                                                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+                                                                    {payment.method}
+                                                                </span>
+                                                            </td>
 
-                                        <td className="px-6 py-4 text-sm font-semibold text-slate-500">
-                                            {payment.receivedBy || "-"}
-                                        </td>
+                                                            <td className="px-6 py-4 text-sm font-semibold text-slate-500">
+                                                                {payment.reference || "-"}
+                                                            </td>
 
-                                        <td className="px-6 py-4">
-                                            <Link
-                                                href={`/dashboard/company/payments/${payment.id}/receipt`}
-                                                className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-600 hover:text-white"
-                                            >
-                                                View Receipt
-                                            </Link>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span
-                                                className={`rounded-full px-3 py-1 text-xs font-black ${payment.status === "ACTIVE"
-                                                    ? "bg-emerald-50 text-emerald-700"
-                                                    : "bg-red-50 text-red-700"
-                                                    }`}
-                                            >
-                                                {payment.status}
-                                            </span>
-                                        </td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                                                                    <CalendarDays
+                                                                        size={16}
+                                                                        className="text-emerald-600"
+                                                                    />
+                                                                    {new Date(
+                                                                        payment.paymentDate
+                                                                    ).toLocaleDateString()}
+                                                                </div>
+                                                            </td>
 
-                                        <td className="px-6 py-4">
-                                            {payment.status === "ACTIVE" ? (
-                                                <ReversePaymentButton paymentId={payment.id} />
-                                            ) : (
-                                                <span className="text-xs font-bold text-slate-400">
-                                                    Reversed
-                                                </span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                                            <td className="px-6 py-4 text-sm font-semibold text-slate-500">
+                                                                {payment.receivedBy || "-"}
+                                                            </td>
+
+                                                            <td className="px-6 py-4">
+                                                                <Link
+                                                                    href={`/dashboard/company/payments/${payment.id}/receipt`}
+                                                                    className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-600 hover:text-white"
+                                                                >
+                                                                    View Receipt
+                                                                </Link>
+                                                            </td>
+
+                                                            <td className="px-6 py-4">
+                                                                <span
+                                                                    className={`rounded-full px-3 py-1 text-xs font-black ${payment.status === "ACTIVE"
+                                                                        ? "bg-emerald-50 text-emerald-700"
+                                                                        : "bg-red-50 text-red-700"
+                                                                        }`}
+                                                                >
+                                                                    {payment.status}
+                                                                </span>
+                                                            </td>
+
+                                                            <td className="px-6 py-4">
+                                                                {payment.status === "ACTIVE" ? (
+                                                                    <ReversePaymentButton
+                                                                        paymentId={payment.id}
+                                                                    />
+                                                                ) : (
+                                                                    <span className="text-xs font-bold text-slate-400">
+                                                                        Reversed
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </details>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         </main>
     );
