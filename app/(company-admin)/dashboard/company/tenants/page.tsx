@@ -75,7 +75,11 @@ export default async function CompanyTenantsPage({
                         </p>
                     </div>
 
-                    <AddTenantModal units={units} selectedUnitId={unitId} />
+                    <AddTenantModal
+                        properties={properties}
+                        units={units}
+                        selectedUnitId={unitId}
+                    />
                 </div>
             </div>
 

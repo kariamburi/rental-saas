@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { DoorOpen, Edit, Home, Wallet, X } from "lucide-react";
+import { DoorOpen, Edit, Home, House, Wallet, X } from "lucide-react";
 
 type PropertyItem = {
     id: string;
@@ -13,6 +13,7 @@ type UnitItem = {
     id: string;
     propertyId: string;
     unitNumber: string;
+    unitSize?: string | null;
     rentAmount: any;
     status: string;
 };
@@ -29,6 +30,7 @@ export default function EditUnitModal({
     const [open, setOpen] = useState(false);
     const [propertyId, setPropertyId] = useState(unit.propertyId);
     const [unitNumber, setUnitNumber] = useState(unit.unitNumber);
+    const [unitSize, setUnitSize] = useState(unit.unitSize || "");
     const [rentAmount, setRentAmount] = useState(String(unit.rentAmount));
     const [status, setStatus] = useState(unit.status);
     const [error, setError] = useState("");
@@ -47,6 +49,7 @@ export default function EditUnitModal({
                     unitId: unit.id,
                     propertyId,
                     unitNumber,
+                    unitSize,
                     rentAmount,
                     status,
                 }),
@@ -71,6 +74,7 @@ export default function EditUnitModal({
     return (
         <>
             <button
+                type="button"
                 onClick={() => setOpen(true)}
                 className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition hover:bg-emerald-50 hover:text-emerald-700"
                 title="Edit unit"
@@ -87,7 +91,7 @@ export default function EditUnitModal({
                                     Edit Unit
                                 </h2>
                                 <p className="text-sm text-slate-500">
-                                    Update unit rent, status, property, or number
+                                    Update unit rent, size, status, property, or number
                                 </p>
                             </div>
 
@@ -134,6 +138,31 @@ export default function EditUnitModal({
                                 onChange={setUnitNumber}
                                 placeholder="Example: A1, B2, Shop 3"
                             />
+
+                            <div>
+                                <label className="mb-2 block text-sm font-bold text-slate-700">
+                                    Unit Size
+                                </label>
+                                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-emerald-100">
+                                    <House size={18} className="text-emerald-600" />
+                                    <select
+                                        value={unitSize}
+                                        onChange={(e) => setUnitSize(e.target.value)}
+                                        className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
+                                    >
+                                        <option value="">Select Unit Size</option>
+                                        <option value="Bedsitter">Bedsitter</option>
+                                        <option value="1 Bedroom">1 Bedroom</option>
+                                        <option value="2 Bedroom">2 Bedroom</option>
+                                        <option value="3 Bedroom">3 Bedroom</option>
+                                        <option value="4 Bedroom">4 Bedroom</option>
+                                        <option value="Shop">Shop</option>
+                                        <option value="Office">Office</option>
+                                        <option value="Warehouse">Warehouse</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
 
                             <Input
                                 icon={Wallet}
@@ -190,9 +219,13 @@ function Input({
 }) {
     return (
         <div>
-            <label className="mb-2 block text-sm font-bold text-slate-700">{label}</label>
+            <label className="mb-2 block text-sm font-bold text-slate-700">
+                {label}
+            </label>
+
             <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-emerald-100">
                 <Icon size={18} className="text-emerald-600" />
+
                 <input
                     className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
                     value={value}

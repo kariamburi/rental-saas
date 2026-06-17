@@ -85,6 +85,7 @@ model Unit {
   meterReadings       MeterReading[]
   unitBookings        UnitBooking[]
   inspections         PropertyInspection[]
+  unitSize String?
 }
 
 model Lease {

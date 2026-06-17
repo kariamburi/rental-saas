@@ -83,7 +83,11 @@ export default async function CompanyLeasesPage({
                         </p>
                     </div>
 
-                    <AddLeaseModal tenants={tenants} selectedTenantId={tenantId} />
+                    <AddLeaseModal
+                        properties={properties}
+                        tenants={tenants}
+                        selectedTenantId={tenantId}
+                    />
                 </div>
             </div>
 

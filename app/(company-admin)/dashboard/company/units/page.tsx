@@ -6,7 +6,6 @@ import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 import GroupedUnitsList from "./GroupedUnitsList";
 
-
 export default async function CompanyUnitsPage() {
     const user = await getAuthUser();
 
@@ -27,13 +26,19 @@ export default async function CompanyUnitsPage() {
     if (!company) redirect("/dashboard");
 
     const properties = await prisma.property.findMany({
-        where: { companyId: user.companyId },
+        where: {
+            companyId: user.companyId,
+        },
         include: {
             units: {
-                orderBy: { createdAt: "desc" },
+                orderBy: {
+                    createdAt: "desc",
+                },
             },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: {
+            createdAt: "desc",
+        },
     });
 
     const units = properties.flatMap((property) => property.units);
@@ -46,25 +51,40 @@ export default async function CompanyUnitsPage() {
                         <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-300">
                             Unit Management
                         </p>
+
                         <h1 className="mt-3 text-3xl font-black">{company.name}</h1>
+
                         <p className="mt-2 max-w-2xl text-slate-300">
-                            Manage rental units grouped by property.
+                            Manage rental units grouped by property, size, rent and
+                            occupancy status.
                         </p>
                     </div>
 
-                    <AddUnitModal properties={properties} />
+                    <AddUnitModal
+                        properties={properties.map((property) => ({
+                            id: property.id,
+                            name: property.name,
+                        }))}
+                    />
                 </div>
             </div>
 
-            <div className="grid gap-5 md:grid-cols-3">
+            <div className="grid gap-5 md:grid-cols-4">
                 <SummaryCard title="Total Units" value={units.length} />
+
                 <SummaryCard
                     title="Vacant Units"
                     value={units.filter((u) => u.status === "VACANT").length}
                 />
+
                 <SummaryCard
                     title="Occupied Units"
                     value={units.filter((u) => u.status === "OCCUPIED").length}
+                />
+
+                <SummaryCard
+                    title="Maintenance"
+                    value={units.filter((u) => u.status === "MAINTENANCE").length}
                 />
             </div>
 
@@ -73,9 +93,11 @@ export default async function CompanyUnitsPage() {
                     <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
                         <DoorOpen size={26} />
                     </div>
+
                     <h3 className="mt-4 text-lg font-black text-slate-950">
                         No properties yet
                     </h3>
+
                     <p className="mt-1 text-sm text-slate-500">
                         Add properties first, then add units.
                     </p>

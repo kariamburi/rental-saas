@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
     Building2,
     ChevronDown,
     DoorOpen,
+    Filter,
     Home,
+    House,
     Wallet,
 } from "lucide-react";
 import AddUnitModal from "./AddUnitModal";
@@ -17,6 +19,7 @@ type UnitItem = {
     companyId: string;
     propertyId: string;
     unitNumber: string;
+    unitSize?: string | null;
     rentAmount: any;
     status: string;
     createdAt: Date;
@@ -39,13 +42,80 @@ export default function GroupedUnitsList({
         properties.length > 0 ? properties[0].id : null
     );
 
+    const [statusFilter, setStatusFilter] = useState("ALL");
+    const [sizeFilter, setSizeFilter] = useState("ALL");
+
+    const filteredProperties = useMemo(() => {
+        return properties.map((property) => ({
+            ...property,
+            units: property.units.filter((unit) => {
+                const matchesStatus =
+                    statusFilter === "ALL" || unit.status === statusFilter;
+
+                const matchesSize =
+                    sizeFilter === "ALL" || unit.unitSize === sizeFilter;
+
+                return matchesStatus && matchesSize;
+            }),
+        }));
+    }, [properties, statusFilter, sizeFilter]);
+
     return (
         <div className="mt-8 space-y-5">
-            {properties.map((property) => {
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center gap-2">
+                    <Filter size={18} className="text-emerald-600" />
+                    <h3 className="font-black text-slate-950">Filter Units</h3>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label className="mb-2 block text-sm font-bold text-slate-700">
+                            Status
+                        </label>
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+                        >
+                            <option value="ALL">All Statuses</option>
+                            <option value="VACANT">Vacant</option>
+                            <option value="OCCUPIED">Occupied</option>
+                            <option value="MAINTENANCE">Maintenance</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="mb-2 block text-sm font-bold text-slate-700">
+                            Unit Size
+                        </label>
+                        <select
+                            value={sizeFilter}
+                            onChange={(e) => setSizeFilter(e.target.value)}
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+                        >
+                            <option value="ALL">All Sizes</option>
+                            <option value="Bedsitter">Bedsitter</option>
+                            <option value="1 Bedroom">1 Bedroom</option>
+                            <option value="2 Bedroom">2 Bedroom</option>
+                            <option value="3 Bedroom">3 Bedroom</option>
+                            <option value="4 Bedroom">4 Bedroom</option>
+                            <option value="Shop">Shop</option>
+                            <option value="Office">Office</option>
+                            <option value="Warehouse">Warehouse</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            {filteredProperties.map((property) => {
                 const isOpen = openPropertyId === property.id;
                 const vacant = property.units.filter((u) => u.status === "VACANT").length;
                 const occupied = property.units.filter((u) => u.status === "OCCUPIED").length;
-                const maintenance = property.units.filter((u) => u.status === "MAINTENANCE").length;
+                const maintenance = property.units.filter(
+                    (u) => u.status === "MAINTENANCE"
+                ).length;
 
                 return (
                     <div
@@ -103,12 +173,9 @@ export default function GroupedUnitsList({
 
                                 {property.units.length === 0 ? (
                                     <div className="rounded-[2rem] border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-                                        <DoorOpen
-                                            size={26}
-                                            className="mx-auto text-emerald-600"
-                                        />
+                                        <DoorOpen size={26} className="mx-auto text-emerald-600" />
                                         <h3 className="mt-3 font-black text-slate-950">
-                                            No units in this property
+                                            No units match this filter
                                         </h3>
                                     </div>
                                 ) : (
@@ -116,7 +183,7 @@ export default function GroupedUnitsList({
                                         {property.units.map((unit) => (
                                             <div
                                                 key={unit.id}
-                                                className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg"
+                                                className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm transition hover:border-emerald-200 hover:shadow-lg"
                                             >
                                                 <div className="flex items-start justify-between">
                                                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
@@ -124,10 +191,7 @@ export default function GroupedUnitsList({
                                                     </div>
 
                                                     <div className="flex items-center gap-2">
-                                                        <EditUnitModal
-                                                            unit={unit}
-                                                            properties={[property]}
-                                                        />
+                                                        <EditUnitModal unit={unit} properties={[property]} />
 
                                                         <DeleteUnitButton
                                                             unitId={unit.id}
@@ -147,6 +211,13 @@ export default function GroupedUnitsList({
                                                 <h2 className="mt-5 text-xl font-black text-slate-950">
                                                     Unit {unit.unitNumber}
                                                 </h2>
+
+                                                {unit.unitSize && (
+                                                    <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+                                                        <House size={14} />
+                                                        {unit.unitSize}
+                                                    </div>
+                                                )}
 
                                                 <div className="mt-3 flex items-center gap-2 text-sm font-semibold text-slate-500">
                                                     <Home size={16} className="text-emerald-600" />

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { DoorOpen, Home, Plus, Wallet, X } from "lucide-react";
+import { DoorOpen, Home, House, Plus, Wallet, X } from "lucide-react";
 
 type PropertyItem = {
     id: string;
@@ -19,6 +19,7 @@ export default function AddUnitModal({
     const [open, setOpen] = useState(false);
     const [propertyId, setPropertyId] = useState(properties[0]?.id || "");
     const [unitNumber, setUnitNumber] = useState("");
+    const [unitSize, setUnitSize] = useState("");
     const [rentAmount, setRentAmount] = useState("");
     const [status, setStatus] = useState("VACANT");
     const [error, setError] = useState("");
@@ -33,7 +34,13 @@ export default function AddUnitModal({
             const res = await fetch("/api/units", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ propertyId, unitNumber, rentAmount, status }),
+                body: JSON.stringify({
+                    propertyId,
+                    unitNumber,
+                    unitSize,
+                    rentAmount,
+                    status,
+                }),
             });
 
             const data = await res.json();
@@ -44,6 +51,7 @@ export default function AddUnitModal({
             }
 
             setUnitNumber("");
+            setUnitSize("");
             setRentAmount("");
             setStatus("VACANT");
             setOpen(false);
@@ -58,6 +66,7 @@ export default function AddUnitModal({
     return (
         <>
             <button
+                type="button"
                 onClick={() => setOpen(true)}
                 className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700"
             >
@@ -77,6 +86,7 @@ export default function AddUnitModal({
                             </div>
 
                             <button
+                                type="button"
                                 onClick={() => setOpen(false)}
                                 className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 hover:bg-slate-200"
                             >
@@ -118,6 +128,31 @@ export default function AddUnitModal({
                                 onChange={setUnitNumber}
                                 placeholder="Example: A1, B2, Shop 3"
                             />
+
+                            <div>
+                                <label className="mb-2 block text-sm font-bold text-slate-700">
+                                    Unit Size
+                                </label>
+                                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-emerald-100">
+                                    <House size={18} className="text-emerald-600" />
+                                    <select
+                                        value={unitSize}
+                                        onChange={(e) => setUnitSize(e.target.value)}
+                                        className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
+                                    >
+                                        <option value="">Select Unit Size</option>
+                                        <option value="Bedsitter">Bedsitter</option>
+                                        <option value="1 Bedroom">1 Bedroom</option>
+                                        <option value="2 Bedroom">2 Bedroom</option>
+                                        <option value="3 Bedroom">3 Bedroom</option>
+                                        <option value="4 Bedroom">4 Bedroom</option>
+                                        <option value="Shop">Shop</option>
+                                        <option value="Office">Office</option>
+                                        <option value="Warehouse">Warehouse</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
 
                             <Input
                                 icon={Wallet}
@@ -174,7 +209,9 @@ function Input({
 }) {
     return (
         <div>
-            <label className="mb-2 block text-sm font-bold text-slate-700">{label}</label>
+            <label className="mb-2 block text-sm font-bold text-slate-700">
+                {label}
+            </label>
             <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-emerald-100">
                 <Icon size={18} className="text-emerald-600" />
                 <input

@@ -14,8 +14,14 @@ export async function POST(req: Request) {
             );
         }
 
-        const { companyId: bodyCompanyId, propertyId, unitNumber, rentAmount, status } =
-            await req.json();
+        const {
+            companyId: bodyCompanyId,
+            propertyId,
+            unitNumber,
+            unitSize,
+            rentAmount,
+            status,
+        } = await req.json();
 
         let companyId: string | null = null;
 
@@ -29,7 +35,10 @@ export async function POST(req: Request) {
 
         if (!companyId || !propertyId || !unitNumber || !rentAmount) {
             return NextResponse.json(
-                { ok: false, error: "Property, unit number and rent amount are required" },
+                {
+                    ok: false,
+                    error: "Property, unit number and rent amount are required",
+                },
                 { status: 400 }
             );
         }
@@ -53,6 +62,7 @@ export async function POST(req: Request) {
                 companyId,
                 propertyId,
                 unitNumber,
+                unitSize: unitSize || null,
                 rentAmount,
                 status: status || "VACANT",
             },
@@ -61,12 +71,14 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, unit });
     } catch (error) {
         console.error("Create unit error:", error);
+
         return NextResponse.json(
             { ok: false, error: "Server error while creating unit" },
             { status: 500 }
         );
     }
 }
+
 export async function PATCH(req: Request) {
     try {
         const user = await getAuthUser();
@@ -78,7 +90,14 @@ export async function PATCH(req: Request) {
             );
         }
 
-        const { unitId, propertyId, unitNumber, rentAmount, status } = await req.json();
+        const {
+            unitId,
+            propertyId,
+            unitNumber,
+            unitSize,
+            rentAmount,
+            status,
+        } = await req.json();
 
         let companyId: string | null = null;
 
@@ -96,7 +115,10 @@ export async function PATCH(req: Request) {
 
         if (!companyId || !unitId || !propertyId || !unitNumber || !rentAmount) {
             return NextResponse.json(
-                { ok: false, error: "Unit, property, unit number and rent amount are required" },
+                {
+                    ok: false,
+                    error: "Unit, property, unit number and rent amount are required",
+                },
                 { status: 400 }
             );
         }
@@ -134,6 +156,7 @@ export async function PATCH(req: Request) {
             data: {
                 propertyId,
                 unitNumber,
+                unitSize: unitSize || null,
                 rentAmount,
                 status: status || existingUnit.status,
             },
@@ -142,12 +165,14 @@ export async function PATCH(req: Request) {
         return NextResponse.json({ ok: true, unit });
     } catch (error) {
         console.error("Update unit error:", error);
+
         return NextResponse.json(
             { ok: false, error: "Server error while updating unit" },
             { status: 500 }
         );
     }
 }
+
 export async function DELETE(req: Request) {
     try {
         const user = await getAuthUser();
@@ -164,7 +189,8 @@ export async function DELETE(req: Request) {
         const unit = await prisma.unit.findFirst({
             where: {
                 id: unitId,
-                companyId: user.companyId || undefined,
+                companyId:
+                    user.role === Roles.COMPANY_ADMIN ? user.companyId || undefined : undefined,
             },
         });
 
@@ -177,10 +203,7 @@ export async function DELETE(req: Request) {
 
         if (unit.status !== "VACANT") {
             return NextResponse.json(
-                {
-                    ok: false,
-                    error: "Only vacant units can be deleted",
-                },
+                { ok: false, error: "Only vacant units can be deleted" },
                 { status: 400 }
             );
         }
@@ -191,17 +214,12 @@ export async function DELETE(req: Request) {
             },
         });
 
-        return NextResponse.json({
-            ok: true,
-        });
+        return NextResponse.json({ ok: true });
     } catch (error) {
-        console.error(error);
+        console.error("Delete unit error:", error);
 
         return NextResponse.json(
-            {
-                ok: false,
-                error: "Failed to delete unit",
-            },
+            { ok: false, error: "Failed to delete unit" },
             { status: 500 }
         );
     }

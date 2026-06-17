@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
     Briefcase,
+    Building2,
     CalendarDays,
     DoorOpen,
     IdCard,
@@ -15,19 +16,29 @@ import {
     X,
 } from "lucide-react";
 
+type PropertyItem = {
+    id: string;
+    name: string;
+};
+
 type UnitItem = {
     id: string;
+    propertyId: string;
     unitNumber: string;
+    unitSize?: string | null;
     status: string;
     property: {
+        id: string;
         name: string;
     };
 };
 
 export default function AddTenantModal({
+    properties,
     units,
     selectedUnitId,
 }: {
+    properties: PropertyItem[];
     units: UnitItem[];
     selectedUnitId?: string;
 }) {
@@ -35,13 +46,16 @@ export default function AddTenantModal({
 
     const availableUnits = units.filter((u) => u.status === "VACANT");
 
-    const initialUnitId =
-        selectedUnitId && availableUnits.some((u) => u.id === selectedUnitId)
-            ? selectedUnitId
-            : availableUnits[0]?.id || "";
+    const selectedUnit = selectedUnitId
+        ? availableUnits.find((u) => u.id === selectedUnitId)
+        : null;
+
+    const initialPropertyId =
+        selectedUnit?.propertyId || selectedUnit?.property?.id || properties[0]?.id || "";
 
     const [open, setOpen] = useState(Boolean(selectedUnitId));
-    const [unitId, setUnitId] = useState(initialUnitId);
+    const [propertyId, setPropertyId] = useState(initialPropertyId);
+    const [unitId, setUnitId] = useState(selectedUnit?.id || "");
     const [name, setName] = useState("");
     const [phone, setPhone] = useState("");
     const [email, setEmail] = useState("");
@@ -53,9 +67,31 @@ export default function AddTenantModal({
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
+    const filteredUnits = useMemo(() => {
+        return availableUnits.filter((unit) => unit.propertyId === propertyId);
+    }, [availableUnits, propertyId]);
+
+    function handlePropertyChange(value: string) {
+        setPropertyId(value);
+
+        const firstUnit = availableUnits.find((unit) => unit.propertyId === value);
+        setUnitId(firstUnit?.id || "");
+    }
+
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         setError("");
+
+        if (!propertyId) {
+            setError("Please select property");
+            return;
+        }
+
+        if (!unitId) {
+            setError("Please select vacant unit");
+            return;
+        }
+
         setLoading(true);
 
         try {
@@ -102,6 +138,7 @@ export default function AddTenantModal({
     return (
         <>
             <button
+                type="button"
                 onClick={() => setOpen(true)}
                 className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700"
             >
@@ -118,11 +155,12 @@ export default function AddTenantModal({
                                     Add Tenant
                                 </h2>
                                 <p className="text-sm text-slate-500">
-                                    Register tenant and assign to an available unit
+                                    Select property first, then assign a vacant unit.
                                 </p>
                             </div>
 
                             <button
+                                type="button"
                                 onClick={() => setOpen(false)}
                                 className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl bg-slate-100 text-slate-500 hover:bg-slate-200"
                             >
@@ -146,23 +184,54 @@ export default function AddTenantModal({
                                 </div>
                             )}
 
-                            <div>
-                                <label className="mb-2 block text-sm font-bold text-slate-700">
-                                    Unit
-                                </label>
-                                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                    <DoorOpen size={18} className="text-emerald-600" />
-                                    <select
-                                        value={unitId}
-                                        onChange={(e) => setUnitId(e.target.value)}
-                                        className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
-                                    >
-                                        {availableUnits.map((unit) => (
-                                            <option key={unit.id} value={unit.id}>
-                                                {unit.property.name} - Unit {unit.unitNumber}
+                            <div className="grid gap-5 md:grid-cols-2">
+                                <div>
+                                    <label className="mb-2 block text-sm font-bold text-slate-700">
+                                        Property
+                                    </label>
+                                    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                        <Building2 size={18} className="text-emerald-600" />
+                                        <select
+                                            value={propertyId}
+                                            onChange={(e) => handlePropertyChange(e.target.value)}
+                                            className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
+                                        >
+                                            <option value="">Select property</option>
+                                            {properties.map((property) => (
+                                                <option key={property.id} value={property.id}>
+                                                    {property.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="mb-2 block text-sm font-bold text-slate-700">
+                                        Vacant Unit
+                                    </label>
+                                    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                        <DoorOpen size={18} className="text-emerald-600" />
+                                        <select
+                                            value={unitId}
+                                            onChange={(e) => setUnitId(e.target.value)}
+                                            disabled={!propertyId || filteredUnits.length === 0}
+                                            className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none disabled:opacity-60"
+                                        >
+                                            <option value="">
+                                                {propertyId
+                                                    ? "Select vacant unit"
+                                                    : "Select property first"}
                                             </option>
-                                        ))}
-                                    </select>
+
+                                            {filteredUnits.map((unit) => (
+                                                <option key={unit.id} value={unit.id}>
+                                                    Unit {unit.unitNumber}
+                                                    {unit.unitSize ? ` - ${unit.unitSize}` : ""}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
 

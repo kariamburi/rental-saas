@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+    Building2,
     CalendarDays,
     DoorOpen,
     FileText,
@@ -12,15 +13,23 @@ import {
     X,
 } from "lucide-react";
 
+type PropertyItem = {
+    id: string;
+    name: string;
+};
+
 type TenantItem = {
     id: string;
     name: string;
     unitId: string | null;
     unit: {
         id: string;
+        propertyId: string;
         unitNumber: string;
+        unitSize?: string | null;
         rentAmount: unknown;
         property: {
+            id: string;
             name: string;
         };
     } | null;
@@ -41,24 +50,47 @@ const defaultAgreementTerms = `1. Rent shall be paid on or before the agreed ren
 export default function AddLeaseModal({
     selectedTenantId,
     tenants,
+    properties,
 }: {
     selectedTenantId?: string;
     tenants: TenantItem[];
+    properties: PropertyItem[];
 }) {
     const router = useRouter();
 
+    const selectedTenantFromUrl = selectedTenantId
+        ? tenants.find((t) => t.id === selectedTenantId)
+        : null;
+
+    const initialPropertyId =
+        selectedTenantFromUrl?.unit?.propertyId ||
+        selectedTenantFromUrl?.unit?.property?.id ||
+        properties[0]?.id ||
+        "";
+
+    const initialTenants = tenants.filter(
+        (tenant) => tenant.unit?.propertyId === initialPropertyId
+    );
+
     const initialTenantId =
-        selectedTenantId && tenants.some((t) => t.id === selectedTenantId)
+        selectedTenantId && initialTenants.some((t) => t.id === selectedTenantId)
             ? selectedTenantId
-            : tenants[0]?.id || "";
+            : initialTenants[0]?.id || "";
 
     const [open, setOpen] = useState(Boolean(selectedTenantId));
+    const [propertyId, setPropertyId] = useState(initialPropertyId);
     const [tenantId, setTenantId] = useState(initialTenantId);
+
     const selectedTenant = tenants.find((t) => t.id === tenantId);
+
+    const filteredTenants = tenants.filter(
+        (tenant) => tenant.unit?.propertyId === propertyId
+    );
 
     const [monthlyRent, setMonthlyRent] = useState(
         selectedTenant?.unit ? String(selectedTenant.unit.rentAmount) : ""
     );
+
     const [depositAmount, setDepositAmount] = useState("");
     const [garbageCharge, setGarbageCharge] = useState("0");
     const [securityCharge, setSecurityCharge] = useState("0");
@@ -85,8 +117,20 @@ export default function AddLeaseModal({
         Number(securityCharge || 0) +
         Number(serviceCharge || 0);
 
+    function handlePropertyChange(value: string) {
+        setPropertyId(value);
+
+        const firstTenant = tenants.find(
+            (tenant) => tenant.unit?.propertyId === value
+        );
+
+        setTenantId(firstTenant?.id || "");
+        setMonthlyRent(firstTenant?.unit ? String(firstTenant.unit.rentAmount) : "");
+    }
+
     function handleTenantChange(value: string) {
         setTenantId(value);
+
         const tenant = tenants.find((t) => t.id === value);
         setMonthlyRent(tenant?.unit ? String(tenant.unit.rentAmount) : "");
     }
@@ -96,6 +140,11 @@ export default function AddLeaseModal({
         setError("");
 
         const tenant = tenants.find((t) => t.id === tenantId);
+
+        if (!propertyId) {
+            setError("Please select property");
+            return;
+        }
 
         if (!tenant?.unitId) {
             setError("Selected tenant has no assigned unit");
@@ -159,6 +208,7 @@ export default function AddLeaseModal({
     return (
         <>
             <button
+                type="button"
                 onClick={() => setOpen(true)}
                 className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700"
             >
@@ -171,13 +221,16 @@ export default function AddLeaseModal({
                     <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
                         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
                             <div>
-                                <h2 className="text-xl font-black text-slate-950">Add Lease</h2>
+                                <h2 className="text-xl font-black text-slate-950">
+                                    Add Lease
+                                </h2>
                                 <p className="text-sm text-slate-500">
-                                    Create lease agreement for a tenant
+                                    Select property first, then select tenant and unit.
                                 </p>
                             </div>
 
                             <button
+                                type="button"
                                 onClick={() => setOpen(false)}
                                 className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl bg-slate-100 text-slate-500 hover:bg-slate-200"
                             >
@@ -195,26 +248,57 @@ export default function AddLeaseModal({
                                 </div>
                             )}
 
-                            <div>
-                                <label className="mb-2 block text-sm font-bold text-slate-700">
-                                    Tenant
-                                </label>
-                                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                    <User size={18} className="text-emerald-600" />
-                                    <select
-                                        value={tenantId}
-                                        onChange={(e) => handleTenantChange(e.target.value)}
-                                        className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
-                                    >
-                                        {tenants.map((tenant) => (
-                                            <option key={tenant.id} value={tenant.id}>
-                                                {tenant.name}
-                                                {tenant.unit
-                                                    ? ` - ${tenant.unit.property.name} Unit ${tenant.unit.unitNumber}`
-                                                    : " - No unit"}
+                            <div className="grid gap-5 md:grid-cols-2">
+                                <div>
+                                    <label className="mb-2 block text-sm font-bold text-slate-700">
+                                        Property
+                                    </label>
+                                    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                        <Building2 size={18} className="text-emerald-600" />
+                                        <select
+                                            value={propertyId}
+                                            onChange={(e) => handlePropertyChange(e.target.value)}
+                                            className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
+                                        >
+                                            <option value="">Select property</option>
+                                            {properties.map((property) => (
+                                                <option key={property.id} value={property.id}>
+                                                    {property.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="mb-2 block text-sm font-bold text-slate-700">
+                                        Tenant
+                                    </label>
+                                    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                        <User size={18} className="text-emerald-600" />
+                                        <select
+                                            value={tenantId}
+                                            onChange={(e) => handleTenantChange(e.target.value)}
+                                            disabled={!propertyId || filteredTenants.length === 0}
+                                            className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none disabled:opacity-60"
+                                        >
+                                            <option value="">
+                                                {propertyId ? "Select tenant" : "Select property first"}
                                             </option>
-                                        ))}
-                                    </select>
+
+                                            {filteredTenants.map((tenant) => (
+                                                <option key={tenant.id} value={tenant.id}>
+                                                    {tenant.name}
+                                                    {tenant.unit
+                                                        ? ` - Unit ${tenant.unit.unitNumber}${tenant.unit.unitSize
+                                                            ? ` - ${tenant.unit.unitSize}`
+                                                            : ""
+                                                        }`
+                                                        : " - No unit"}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
 
@@ -222,23 +306,88 @@ export default function AddLeaseModal({
                                 <div className="rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
                                     <div className="flex items-center gap-2">
                                         <DoorOpen size={16} />
-                                        {selectedTenant.unit.property.name} - Unit{" "}
-                                        {selectedTenant.unit.unitNumber}
+                                        {selectedTenant.name} - Unit {selectedTenant.unit.unitNumber}
+                                        {selectedTenant.unit.unitSize
+                                            ? ` - ${selectedTenant.unit.unitSize}`
+                                            : ""}
                                     </div>
+                                    <p className="mt-1 text-xs text-emerald-600">
+                                        Property: {selectedTenant.unit.property.name}
+                                    </p>
                                 </div>
                             )}
 
                             <div className="grid gap-5 md:grid-cols-2">
-                                <Input icon={Wallet} label="Monthly Rent" value={monthlyRent} onChange={setMonthlyRent} type="number" />
-                                <Input icon={Wallet} label="Deposit Amount" value={depositAmount} onChange={setDepositAmount} type="number" />
-                                <Input icon={Wallet} label="Garbage Charge" value={garbageCharge} onChange={setGarbageCharge} type="number" />
-                                <Input icon={Wallet} label="Security Charge" value={securityCharge} onChange={setSecurityCharge} type="number" />
-                                <Input icon={Wallet} label="Service Charge" value={serviceCharge} onChange={setServiceCharge} type="number" />
-                                <Input icon={CalendarDays} label="Start Date" value={startDate} onChange={setStartDate} type="date" />
-                                <Input icon={CalendarDays} label="End Date" value={endDate} onChange={setEndDate} type="date" />
-                                <Input icon={CalendarDays} label="Billing Day" value={billingDay} onChange={setBillingDay} type="number" />
-                                <Input icon={CalendarDays} label="Rent Due Day" value={rentDueDay} onChange={setRentDueDay} type="number" />
-                                <Input icon={CalendarDays} label="Grace Period Days" value={gracePeriodDays} onChange={setGracePeriodDays} type="number" />
+                                <Input
+                                    icon={Wallet}
+                                    label="Monthly Rent"
+                                    value={monthlyRent}
+                                    onChange={setMonthlyRent}
+                                    type="number"
+                                />
+                                <Input
+                                    icon={Wallet}
+                                    label="Deposit Amount"
+                                    value={depositAmount}
+                                    onChange={setDepositAmount}
+                                    type="number"
+                                />
+                                <Input
+                                    icon={Wallet}
+                                    label="Garbage Charge"
+                                    value={garbageCharge}
+                                    onChange={setGarbageCharge}
+                                    type="number"
+                                />
+                                <Input
+                                    icon={Wallet}
+                                    label="Security Charge"
+                                    value={securityCharge}
+                                    onChange={setSecurityCharge}
+                                    type="number"
+                                />
+                                <Input
+                                    icon={Wallet}
+                                    label="Service Charge"
+                                    value={serviceCharge}
+                                    onChange={setServiceCharge}
+                                    type="number"
+                                />
+                                <Input
+                                    icon={CalendarDays}
+                                    label="Start Date"
+                                    value={startDate}
+                                    onChange={setStartDate}
+                                    type="date"
+                                />
+                                <Input
+                                    icon={CalendarDays}
+                                    label="End Date"
+                                    value={endDate}
+                                    onChange={setEndDate}
+                                    type="date"
+                                />
+                                <Input
+                                    icon={CalendarDays}
+                                    label="Billing Day"
+                                    value={billingDay}
+                                    onChange={setBillingDay}
+                                    type="number"
+                                />
+                                <Input
+                                    icon={CalendarDays}
+                                    label="Rent Due Day"
+                                    value={rentDueDay}
+                                    onChange={setRentDueDay}
+                                    type="number"
+                                />
+                                <Input
+                                    icon={CalendarDays}
+                                    label="Grace Period Days"
+                                    value={gracePeriodDays}
+                                    onChange={setGracePeriodDays}
+                                    type="number"
+                                />
 
                                 <div>
                                     <label className="mb-2 block text-sm font-bold text-slate-700">
@@ -301,7 +450,7 @@ export default function AddLeaseModal({
                             </div>
 
                             <button
-                                disabled={loading || tenants.length === 0}
+                                disabled={loading || tenants.length === 0 || !tenantId}
                                 className="w-full cursor-pointer rounded-2xl bg-emerald-600 py-4 text-sm font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 disabled:opacity-60"
                             >
                                 {loading ? "Saving..." : "Save Lease"}
