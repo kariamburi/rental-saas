@@ -69,7 +69,7 @@ export default function AddOwnerPayoutModal({
             <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-600 hover:text-white"
+                className="rounded-xl  cursor-pointer bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-600 hover:text-white"
             >
                 Pay Owner
             </button>

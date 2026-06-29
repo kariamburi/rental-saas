@@ -16,13 +16,20 @@ function resolveCompanyId(
     bodyCompanyId?: string
 ) {
     if (user.role === Roles.SUPER_ADMIN) return bodyCompanyId || null;
-    if (user.role === Roles.COMPANY_ADMIN) return user.companyId;
-    return null;
-}
 
-function getInvoicePeriodKey(invoiceNo: string) {
-    const match = invoiceNo.match(/(\d{6})/);
-    return match ? match[1] : "";
+    if (
+        [
+            Roles.COMPANY_ADMIN,
+            Roles.MANAGER,
+            Roles.ACCOUNTANT,
+            Roles.CARETAKER,
+            Roles.VIEWER,
+        ].includes(user.role as any)
+    ) {
+        return user.companyId;
+    }
+
+    return null;
 }
 
 export async function POST(req: Request) {
@@ -64,8 +71,9 @@ export async function POST(req: Request) {
             );
         }
 
-        const period = `${yearNumber}-${String(monthNumber).padStart(2, "0")}`;
-        const periodKey = period.replace("-", "");
+        const periodKey = `${yearNumber}-${String(monthNumber).padStart(2, "0")}`;
+        const invoiceType = utilitiesOnly ? "UTILITY_ONLY" : "FULL";
+        const invoiceNoPeriod = periodKey.replace("-", "");
 
         const leases = await prisma.lease.findMany({
             where: {
@@ -106,9 +114,11 @@ export async function POST(req: Request) {
                         companyId,
                         tenantId: lease.tenantId,
                         unitId: lease.unitId,
-                        invoiceNo: {
-                            contains: utilitiesOnly ? `UTIL-${periodKey}` : periodKey,
-                        },
+                        periodKey,
+                        invoiceType,
+                    },
+                    include: {
+                        items: true,
                     },
                 });
 
@@ -118,37 +128,12 @@ export async function POST(req: Request) {
                     continue;
                 }
 
-                const previousInvoices = await prisma.invoice.findMany({
-                    where: {
-                        companyId,
-                        tenantId: lease.tenantId,
-                        unitId: lease.unitId,
-                        balance: {
-                            not: 0,
-                        },
-                    },
-                    select: {
-                        id: true,
-                        invoiceNo: true,
-                        balance: true,
-                    },
-                });
-
-                const previousBalance = previousInvoices.reduce((sum, invoice) => {
-                    const invoicePeriodKey = getInvoicePeriodKey(invoice.invoiceNo);
-
-                    if (!invoicePeriodKey) return sum;
-                    if (invoicePeriodKey >= periodKey) return sum;
-
-                    return sum + toNumber(invoice.balance);
-                }, 0);
-
                 const meterReadings = await prisma.meterReading.findMany({
                     where: {
                         companyId,
                         tenantId: lease.tenantId,
                         unitId: lease.unitId,
-                        billingMonth: period,
+                        billingMonth: periodKey,
                     },
                     orderBy: {
                         type: "asc",
@@ -161,23 +146,45 @@ export async function POST(req: Request) {
                     amount: number;
                 }[] = [];
 
-                if (!utilitiesOnly && previousBalance > 0) {
-                    items.push({
-                        description: "Balance Brought Forward",
-                        type: "ARREARS",
-                        amount: previousBalance,
-                    });
-                }
-
-                if (!utilitiesOnly && previousBalance < 0) {
-                    items.push({
-                        description: "Credit Brought Forward",
-                        type: "CREDIT",
-                        amount: previousBalance,
-                    });
-                }
-
                 if (!utilitiesOnly) {
+                    const previousInvoices = await prisma.invoice.findMany({
+                        where: {
+                            companyId,
+                            tenantId: lease.tenantId,
+                            unitId: lease.unitId,
+                            periodKey: {
+                                lt: periodKey,
+                            },
+                            balance: {
+                                not: 0,
+                            },
+                        },
+                        select: {
+                            balance: true,
+                        },
+                    });
+
+                    const previousBalance = previousInvoices.reduce(
+                        (sum, invoice) => sum + toNumber(invoice.balance),
+                        0
+                    );
+
+                    if (previousBalance > 0) {
+                        items.push({
+                            description: "Balance Brought Forward",
+                            type: "ARREARS",
+                            amount: previousBalance,
+                        });
+                    }
+
+                    if (previousBalance < 0) {
+                        items.push({
+                            description: "Credit Brought Forward",
+                            type: "CREDIT",
+                            amount: previousBalance,
+                        });
+                    }
+
                     const monthlyRent = toNumber(lease.monthlyRent);
 
                     if (monthlyRent > 0) {
@@ -247,9 +254,10 @@ export async function POST(req: Request) {
                     continue;
                 }
 
-                const invoiceNo = utilitiesOnly
-                    ? `UTIL-${periodKey}-${pad(invoiceCount + created + 1)}`
-                    : `INV-${periodKey}-${pad(invoiceCount + created + 1)}`;
+                const invoiceNo =
+                    invoiceType === "UTILITY_ONLY"
+                        ? `UTIL-${invoiceNoPeriod}-${pad(invoiceCount + created + 1)}`
+                        : `INV-${invoiceNoPeriod}-${pad(invoiceCount + created + 1)}`;
 
                 const dueDate = new Date(
                     yearNumber,
@@ -263,6 +271,8 @@ export async function POST(req: Request) {
                         tenantId: lease.tenantId,
                         unitId: lease.unitId,
                         invoiceNo,
+                        periodKey,
+                        invoiceType,
                         invoiceDate: new Date(),
                         dueDate,
                         amount: totalAmount,
@@ -276,6 +286,9 @@ export async function POST(req: Request) {
                                 amount: item.amount,
                             })),
                         },
+                    },
+                    include: {
+                        items: true,
                     },
                 });
 

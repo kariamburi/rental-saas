@@ -47,10 +47,11 @@ export default function GenerateInvoicesButton({
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    year,
-                    month,
+                    year: Number(year),
+                    month: Number(month),
                     propertyId: propertyId === "ALL" ? null : propertyId,
                     tenantId: tenantId === "ALL" ? null : tenantId,
+                    utilitiesOnly: false,
                 }),
             });
 
@@ -61,7 +62,10 @@ export default function GenerateInvoicesButton({
                 return;
             }
 
-            setMessage(`Created ${data.created} invoice(s), skipped ${data.skipped}.`);
+            setMessage(
+                `Created ${data.created} full invoice(s), skipped ${data.skipped}.`
+            );
+
             router.refresh();
         } catch {
             setMessage("Something went wrong");
@@ -130,12 +134,13 @@ export default function GenerateInvoicesButton({
                 </select>
 
                 <button
+                    type="button"
                     onClick={generate}
                     disabled={loading}
                     className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 disabled:opacity-60"
                 >
                     <FilePlus2 size={18} />
-                    {loading ? "Generating..." : "Generate"}
+                    {loading ? "Generating..." : "Generate Full"}
                 </button>
             </div>
 
@@ -149,9 +154,11 @@ export default function GenerateInvoicesButton({
                 </a>
             </div>
 
-            {message && (
-                <p className="mt-4 text-sm font-bold text-emerald-700">{message}</p>
-            )}
+            {message ? (
+                <p className="mt-4 text-sm font-bold text-emerald-700">
+                    {message}
+                </p>
+            ) : null}
         </div>
     );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
     AlertTriangle,
     BarChart3,
@@ -23,9 +24,10 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import LogoutButton from "@/app/components/LogoutButton";
+import { canAccessCompanyRoute } from "@/lib/company-access-map";
 
 const links = [
-    { label: "Dashboard", href: "/dashboard/company", icon: Gauge },
+    { label: "Dashboard", href: "/dashboard/company", icon: Gauge, exact: true },
     { label: "Properties", href: "/dashboard/company/properties", icon: Home },
     { label: "Owners", href: "/dashboard/company/owners", icon: UserRound },
     { label: "Owner Payouts", href: "/dashboard/company/owner-payouts", icon: HandCoins },
@@ -42,9 +44,10 @@ const links = [
     { label: "Inspections", href: "/dashboard/company/inspections", icon: ClipboardCheck },
     { label: "Reports", href: "/dashboard/company/reports", icon: BarChart3 },
     { label: "Arrears", href: "/dashboard/company/arrears", icon: AlertTriangle },
+    { label: "Users", href: "/dashboard/company/users", icon: Users },
 ];
 
-export default function CompanyMobileMenu() {
+export default function CompanyMobileMenu({ role }: { role: string }) {
     const [open, setOpen] = useState(false);
 
     useEffect(() => {
@@ -60,92 +63,125 @@ export default function CompanyMobileMenu() {
             <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-md md:hidden"
+                className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-slate-950 text-white shadow-sm transition hover:bg-emerald-700 md:hidden"
             >
                 <Menu size={22} />
             </button>
 
-            {open && (
+            {open ? (
                 <div className="fixed inset-0 z-[9999] md:hidden">
                     <button
                         type="button"
                         onClick={() => setOpen(false)}
-                        className="absolute inset-0 bg-slate-950/60"
+                        className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
                     />
 
                     <aside className="absolute left-0 top-0 z-[10000] h-dvh w-[92vw] max-w-[360px] overflow-y-auto bg-white p-5 shadow-2xl">
-                        <div className="mb-6 flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                                <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-600">
-                                    Company Admin
-                                </p>
-                                <h2 className="mt-1 text-2xl font-black leading-tight text-slate-950">
-                                    Property Manager
-                                </h2>
-                            </div>
+                        <div className="mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-5 text-white">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">
+                                        Company Workspace
+                                    </p>
+                                    <h2 className="mt-2 text-2xl font-black leading-tight">
+                                        Property Manager
+                                    </h2>
+                                    <p className="mt-2 text-sm font-semibold text-slate-300">
+                                        Manage rental operations.
+                                    </p>
+                                </div>
 
-                            <button
-                                type="button"
-                                onClick={() => setOpen(false)}
-                                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700"
-                            >
-                                <X size={22} />
-                            </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setOpen(false)}
+                                    className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-white/10 text-white transition hover:bg-white/20"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
                         </div>
 
-                        <SidebarLinks onClick={() => setOpen(false)} />
+                        <SidebarLinks role={role} onClick={() => setOpen(false)} />
 
-                        <div className="mt-6 border-t border-slate-100 pt-4">
+                        <div className="mt-6 border-t border-slate-200 pt-4">
                             <LogoutButton />
                         </div>
                     </aside>
                 </div>
-            )}
+            ) : null}
         </>
     );
 }
 
-export function SidebarContent() {
+export function SidebarContent({ role }: { role: string }) {
     return (
         <>
-            <div className="mb-8 rounded-2xl bg-slate-950 p-5 text-white shadow-lg">
-                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
-                    Company Admin
+            <div className="mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-5 text-white shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">
+                    Company Workspace
                 </p>
                 <h2 className="mt-2 text-2xl font-black">Property Manager</h2>
-                <p className="mt-2 text-sm text-slate-300">
+                <p className="mt-2 text-sm font-semibold text-slate-300">
                     Manage properties, tenants and billing.
                 </p>
             </div>
 
-            <SidebarLinks />
+            <SidebarLinks role={role} />
 
-            <div className="mt-6 border-t border-slate-100 pt-4">
+            <div className="lg:hidden mt-4 border-t border-slate-200 pt-4">
                 <LogoutButton />
             </div>
         </>
     );
 }
 
-function SidebarLinks({ onClick }: { onClick?: () => void }) {
+function SidebarLinks({
+    role,
+    onClick,
+}: {
+    role: string;
+    onClick?: () => void;
+}) {
+    const pathname = usePathname();
+
+    const allowedLinks = links.filter((link) =>
+        canAccessCompanyRoute(role, link.href)
+    );
+
     return (
         <nav className="space-y-1">
-            {links.map(({ label, href, icon: Icon }) => (
-                <Link
-                    key={href}
-                    href={href}
-                    onClick={onClick}
-                    className="group flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-950 hover:text-white"
-                >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 transition group-hover:bg-white/15 group-hover:text-emerald-300">
-                        <Icon size={18} />
-                    </span>
+            {allowedLinks.map(({ label, href, icon: Icon, exact }) => {
+                const active = exact
+                    ? pathname === href
+                    : pathname === href || pathname.startsWith(`${href}/`);
 
-                    <span className="min-w-0 flex-1 truncate">
-                        {label}
-                    </span>
-                </Link>
-            ))}
+                return (
+                    <Link
+                        key={href}
+                        href={href}
+                        onClick={onClick}
+                        className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-bold transition ${active
+                            ? "bg-slate-950 text-white shadow-sm"
+                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                            }`}
+                    >
+                        <span
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition ${active
+                                ? "bg-emerald-500 text-white"
+                                : "bg-emerald-50 text-emerald-600 group-hover:bg-white"
+                                }`}
+                        >
+                            <Icon size={17} />
+                        </span>
+
+                        <span className="min-w-0 flex-1 truncate">{label}</span>
+
+                        {active ? (
+                            <span className="h-2 w-2 rounded-full bg-emerald-300" />
+                        ) : null}
+                    </Link>
+                );
+            })}
         </nav>
     );
 }

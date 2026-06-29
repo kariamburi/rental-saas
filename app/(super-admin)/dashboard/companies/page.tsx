@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Building2, Mail, Phone, Plus, ShieldCheck } from "lucide-react";
 import AddCompanyModal from "./AddCompanyModal";
 import Link from "next/link";
+import DeleteCompanyButton from "./DeleteCompanyButton";
 
 export default async function CompaniesPage() {
     const companies = await prisma.company.findMany({
@@ -56,13 +57,14 @@ export default async function CompaniesPage() {
                                 <th className="px-6 py-4">Phone</th>
                                 <th className="px-6 py-4">Status</th>
                                 <th className="px-6 py-4">Created</th>
+                                <th className="px-6 py-4">Action</th>
                             </tr>
                         </thead>
 
                         <tbody className="divide-y divide-slate-100">
                             {companies.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center">
+                                    <td colSpan={6} className="px-6 py-12 text-center">
                                         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
                                             <Building2 size={26} />
                                         </div>
@@ -119,6 +121,12 @@ export default async function CompaniesPage() {
 
                                         <td className="px-6 py-4 text-sm font-semibold text-slate-500">
                                             {new Date(company.createdAt).toLocaleDateString()}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <DeleteCompanyButton
+                                                companyId={company.id}
+                                                companyName={company.name}
+                                            />
                                         </td>
                                     </tr>
                                 ))

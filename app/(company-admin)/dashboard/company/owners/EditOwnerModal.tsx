@@ -64,7 +64,7 @@ export default function EditOwnerModal({ owner }: { owner: OwnerItem }) {
         <>
             <button
                 onClick={() => setOpen(true)}
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition hover:bg-emerald-50 hover:text-emerald-700"
+                className="flex h-9 w-9  cursor-pointer items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition hover:bg-emerald-50 hover:text-emerald-700"
                 title="Edit owner"
             >
                 <Edit size={16} />

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
+import { getCompanySubscription } from "@/lib/get-company-subscription";
 
 export async function POST(req: Request) {
     try {
@@ -34,6 +35,34 @@ export async function POST(req: Request) {
             );
         }
 
+        const subscription = await getCompanySubscription(companyId);
+
+        if (subscription.isExpired) {
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error: "Subscription expired. Please renew to continue.",
+                },
+                { status: 403 }
+            );
+        }
+
+        if (subscription.plan?.propertyLimit) {
+            const propertyCount = await prisma.property.count({
+                where: { companyId },
+            });
+
+            if (propertyCount >= subscription.plan.propertyLimit) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error: `Your current plan allows only ${subscription.plan.propertyLimit} property/properties.`,
+                    },
+                    { status: 403 }
+                );
+            }
+        }
+
         const property = await prisma.property.create({
             data: {
                 companyId,
@@ -46,12 +75,14 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, property });
     } catch (error) {
         console.error("Create property error:", error);
+
         return NextResponse.json(
             { ok: false, error: "Server error while creating property" },
             { status: 500 }
         );
     }
 }
+
 export async function PATCH(req: Request) {
     try {
         const user = await getAuthUser();
@@ -112,6 +143,7 @@ export async function PATCH(req: Request) {
         return NextResponse.json({ ok: true, property });
     } catch (error) {
         console.error("Update property error:", error);
+
         return NextResponse.json(
             { ok: false, error: "Server error while updating property" },
             { status: 500 }
@@ -187,6 +219,7 @@ export async function DELETE(req: Request) {
         return NextResponse.json({ ok: true });
     } catch (error) {
         console.error("Delete property error:", error);
+
         return NextResponse.json(
             { ok: false, error: "Server error while deleting property" },
             { status: 500 }

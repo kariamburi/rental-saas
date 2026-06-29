@@ -35,9 +35,7 @@ export default function LoginPage() {
             }
 
             if (data.user?.role === "SUPER_ADMIN") {
-                router.push("/dashboard");
-            } else if (data.user?.role === "COMPANY_ADMIN") {
-                router.push("/dashboard/company");
+                router.push("/dashboard/switch-company");
             } else {
                 router.push("/dashboard/company");
             }
@@ -94,9 +92,11 @@ export default function LoginPage() {
                         <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-600">
                             Rental SaaS
                         </p>
+
                         <h2 className="mt-3 text-3xl font-black text-slate-950">
                             Sign in to continue
                         </h2>
+
                         <p className="mt-2 text-sm text-slate-500">
                             Access your property management dashboard.
                         </p>
@@ -112,9 +112,12 @@ export default function LoginPage() {
                                 <label className="mb-2 block text-sm font-bold text-slate-700">
                                     Email Address
                                 </label>
+
                                 <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-emerald-100">
                                     <Mail size={18} className="text-emerald-600" />
+
                                     <input
+                                        required
                                         className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
@@ -128,9 +131,12 @@ export default function LoginPage() {
                                 <label className="mb-2 block text-sm font-bold text-slate-700">
                                     Password
                                 </label>
+
                                 <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-emerald-100">
                                     <LockKeyhole size={18} className="text-emerald-600" />
+
                                     <input
+                                        required
                                         className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none"
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
@@ -141,7 +147,7 @@ export default function LoginPage() {
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword((v) => !v)}
-                                        className="text-slate-400 transition hover:text-emerald-600"
+                                        className="cursor-pointer text-slate-400 transition hover:text-emerald-600"
                                     >
                                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>

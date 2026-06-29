@@ -1,11 +1,20 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getAuthUser } from "@/lib/auth";
-import { Roles } from "@/lib/roles";
-import { redirect, notFound } from "next/navigation";
-import { ArrowDownCircle, ArrowUpCircle, ReceiptText } from "lucide-react";
+import { notFound } from "next/navigation";
+import {
+    ArrowDownCircle,
+    ArrowLeft,
+    ArrowUpCircle,
+    Banknote,
+    Building2,
+    CreditCard,
+    ReceiptText,
+    TrendingUp,
+    Wallet,
+} from "lucide-react";
 import LedgerDateFilter from "./LedgerDateFilter";
 import PrintButton from "./PrintButton";
+import { getActiveCompany } from "@/lib/get-active-company";
 
 type LedgerItem = {
     date: Date;
@@ -21,13 +30,7 @@ export default async function OwnerLedgerPage({
     params: Promise<{ ownerId: string }>;
     searchParams: Promise<{ from?: string; to?: string }>;
 }) {
-    const user = await getAuthUser();
-
-    if (!user) redirect("/login");
-
-    if (user.role !== Roles.COMPANY_ADMIN || !user.companyId) {
-        redirect("/dashboard");
-    }
+    const { companyId } = await getActiveCompany();
 
     const { ownerId } = await params;
     const { from, to } = await searchParams;
@@ -41,16 +44,11 @@ export default async function OwnerLedgerPage({
             : undefined;
 
     const owner = await prisma.owner.findFirst({
-        where: {
-            id: ownerId,
-            companyId: user.companyId,
-        },
+        where: { id: ownerId, companyId },
         include: {
             company: true,
             properties: {
-                include: {
-                    property: true,
-                },
+                include: { property: true },
             },
         },
     });
@@ -69,7 +67,7 @@ export default async function OwnerLedgerPage({
     const [payments, expenses, payouts] = await Promise.all([
         prisma.payment.findMany({
             where: {
-                companyId: user.companyId,
+                companyId,
                 paymentDate: dateFilter,
                 invoice: {
                     unit: {
@@ -91,18 +89,16 @@ export default async function OwnerLedgerPage({
 
         prisma.expense.findMany({
             where: {
-                companyId: user.companyId,
+                companyId,
                 expenseDate: dateFilter,
                 propertyId: { in: propertyIds },
             },
-            include: {
-                property: true,
-            },
+            include: { property: true },
         }),
 
         prisma.ownerPayout.findMany({
             where: {
-                companyId: user.companyId,
+                companyId,
                 payoutDate: dateFilter,
                 ownerId: owner.id,
             },
@@ -158,67 +154,96 @@ export default async function OwnerLedgerPage({
     const finalBalance = totalCollections - totalExpenses - totalPayouts;
 
     return (
-        <main className="p-6 print:bg-white print:p-0">
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-300">
-                        Owner Ledger
-                    </p>
-                    <h1 className="mt-3 text-3xl font-black">{owner.name}</h1>
-                    <p className="mt-2 text-slate-300">
-                        Combined ledger of collections, expenses and payouts.
-                    </p>
-                </div>
+        <main className="p-6 print:p-0">
+            <div className="mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 px-6 py-6 text-white shadow-sm print:rounded-none print:bg-white print:text-slate-950 print:shadow-none">
+                <div className="flex flex-col justify-between gap-5 md:flex-row md:items-start">
+                    <div>
+                        <Link
+                            href="/dashboard/company/owners"
+                            className="mb-4 inline-flex items-center gap-2 text-sm font-bold text-emerald-300 transition hover:text-white print:hidden"
+                        >
+                            <ArrowLeft size={16} />
+                            Back to Owners
+                        </Link>
 
-                <PrintButton />
+                        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-300">
+                            Owner Ledger
+                        </p>
+
+                        <h1 className="mt-3 text-3xl font-black">{owner.name}</h1>
+
+                        <p className="mt-2 max-w-2xl text-sm font-semibold text-slate-300">
+                            Combined ledger of owner collections, expenses and payouts.
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 print:hidden">
+                        <Link
+                            href={`/dashboard/company/owners/${owner.id}/statement`}
+                            className="rounded-xl bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/20"
+                        >
+                            Statement
+                        </Link>
+                        <PrintButton />
+                    </div>
+                </div>
             </div>
-            <LedgerDateFilter />
-            <div className="grid gap-5 md:grid-cols-4">
-                <SummaryCard title="Collections" value={totalCollections} />
-                <SummaryCard title="Expenses" value={totalExpenses} danger />
-                <SummaryCard title="Payouts" value={totalPayouts} danger />
+
+            <div className="print:hidden">
+                <LedgerDateFilter />
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-4">
+                <SummaryCard title="Collections" value={totalCollections} icon={Wallet} success />
+                <SummaryCard title="Expenses" value={totalExpenses} icon={ReceiptText} danger />
+                <SummaryCard title="Payouts" value={totalPayouts} icon={CreditCard} danger />
                 <SummaryCard
                     title="Running Balance"
                     value={finalBalance}
+                    icon={TrendingUp}
                     danger={finalBalance < 0}
+                    success={finalBalance >= 0}
                 />
             </div>
 
-            <section className="mt-8 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+            <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm print:shadow-none">
+                <div className="flex flex-col justify-between gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center">
                     <div>
-                        <h2 className="text-lg font-black text-slate-950">
+                        <h2 className="text-xl font-black text-slate-950">
                             Ledger Timeline
                         </h2>
-                        <p className="text-sm text-slate-500">
+                        <p className="mt-1 text-sm font-semibold text-slate-500">
                             Owner balance movement over time.
                         </p>
                     </div>
 
-                    <Link
-                        href={`/dashboard/company/owners/${owner.id}/statement`}
-                        className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-950 hover:text-white"
+                    <span
+                        className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold ${finalBalance >= 0
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-red-50 text-red-700"
+                            }`}
                     >
-                        Statement
-                    </Link>
+                        <Banknote size={13} />
+                        Final Balance: KES {finalBalance.toLocaleString()}
+                    </span>
                 </div>
 
                 <div className="overflow-x-auto">
-                    <table className="w-full min-w-[900px] text-left">
-                        <thead className="bg-slate-50 text-xs font-black uppercase tracking-wider text-slate-500">
-                            <tr>
-                                <th className="px-6 py-4">Date</th>
-                                <th className="px-6 py-4">Type</th>
-                                <th className="px-6 py-4">Description</th>
-                                <th className="px-6 py-4">Amount</th>
-                                <th className="px-6 py-4">Running Balance</th>
+                    <table className="w-full min-w-[950px] border-collapse text-[12px]">
+                        <thead>
+                            <tr className="bg-slate-100 text-slate-900">
+                                <Th>Date</Th>
+                                <Th>Type</Th>
+                                <Th>Description</Th>
+                                <Th>Amount</Th>
+                                <Th>Running Balance</Th>
                             </tr>
                         </thead>
 
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody>
                             {ledger.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center">
+                                    <td colSpan={5} className="px-5 py-12 text-center">
                                         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
                                             <ReceiptText size={26} />
                                         </div>
@@ -235,48 +260,39 @@ export default async function OwnerLedgerPage({
                                     runningBalance += item.amount;
 
                                     return (
-                                        <tr key={`${item.type}-${index}`} className="hover:bg-slate-50">
-                                            <td className="px-6 py-4 text-sm font-semibold text-slate-500">
-                                                {new Date(item.date).toLocaleDateString()}
-                                            </td>
+                                        <tr
+                                            key={`${item.type}-${index}`}
+                                            className="border-b hover:bg-slate-50"
+                                        >
+                                            <Td>
+                                                {new Date(item.date).toLocaleDateString("en-KE")}
+                                            </Td>
 
-                                            <td className="px-6 py-4">
+                                            <Td>
                                                 <span
-                                                    className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-black ${typeStyle(
+                                                    className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-bold ${typeStyle(
                                                         item.type
                                                     )}`}
                                                 >
                                                     {item.amount >= 0 ? (
-                                                        <ArrowUpCircle size={14} />
+                                                        <ArrowUpCircle size={13} />
                                                     ) : (
-                                                        <ArrowDownCircle size={14} />
+                                                        <ArrowDownCircle size={13} />
                                                     )}
                                                     {item.type}
                                                 </span>
-                                            </td>
+                                            </Td>
 
-                                            <td className="px-6 py-4 text-sm font-semibold text-slate-600">
-                                                {item.description}
-                                            </td>
+                                            <Td>{item.description}</Td>
 
-                                            <td
-                                                className={`px-6 py-4 text-sm font-black ${item.amount >= 0
-                                                    ? "text-emerald-700"
-                                                    : "text-red-700"
-                                                    }`}
-                                            >
+                                            <Td strong success={item.amount >= 0} danger={item.amount < 0}>
                                                 {item.amount >= 0 ? "+" : "-"} KES{" "}
                                                 {Math.abs(item.amount).toLocaleString()}
-                                            </td>
+                                            </Td>
 
-                                            <td
-                                                className={`px-6 py-4 text-sm font-black ${runningBalance >= 0
-                                                    ? "text-slate-800"
-                                                    : "text-red-700"
-                                                    }`}
-                                            >
+                                            <Td strong danger={runningBalance < 0}>
                                                 KES {runningBalance.toLocaleString()}
-                                            </td>
+                                            </Td>
                                         </tr>
                                     );
                                 })
@@ -299,21 +315,69 @@ function typeStyle(type: LedgerItem["type"]) {
 function SummaryCard({
     title,
     value,
+    icon: Icon,
+    success,
     danger,
 }: {
     title: string;
     value: number;
+    icon: React.ElementType;
+    success?: boolean;
     danger?: boolean;
 }) {
+    const valueClass = danger
+        ? "text-red-700"
+        : success
+            ? "text-emerald-700"
+            : "text-slate-950";
+
     return (
-        <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-bold text-slate-500">{title}</p>
-            <h2
-                className={`mt-3 text-3xl font-black ${danger ? "text-red-700" : "text-slate-950"
-                    }`}
-            >
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+                <p className="text-sm font-bold text-slate-500">{title}</p>
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                    <Icon size={18} />
+                </span>
+            </div>
+
+            <h2 className={`mt-2 text-2xl font-black ${valueClass}`}>
                 KES {value.toLocaleString()}
             </h2>
         </div>
+    );
+}
+
+function Th({ children }: { children: React.ReactNode }) {
+    return (
+        <th className="border-r border-slate-200 px-2 py-2 text-left font-bold">
+            {children}
+        </th>
+    );
+}
+
+function Td({
+    children,
+    strong,
+    success,
+    danger,
+}: {
+    children: React.ReactNode;
+    strong?: boolean;
+    success?: boolean;
+    danger?: boolean;
+}) {
+    const color = danger
+        ? "text-red-700"
+        : success
+            ? "text-emerald-700"
+            : "text-slate-700";
+
+    return (
+        <td
+            className={`px-2 py-2 ${strong || success || danger ? `font-black ${color}` : color
+                }`}
+        >
+            {children}
+        </td>
     );
 }

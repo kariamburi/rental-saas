@@ -17,7 +17,7 @@ import LogoutButton from "@/app/components/LogoutButton";
 const links = [
     { label: "Dashboard", href: "/dashboard", icon: Gauge },
     { label: "Companies", href: "/dashboard/companies", icon: Building2 },
-    { label: "Company Admins", href: "/dashboard/company-admins", icon: Users },
+    { label: "Switch company", href: "/dashboard/switch-company", icon: Building2 },
     { label: "Subscriptions", href: "/dashboard/subscriptions", icon: CreditCard },
     { label: "SaaS Settings", href: "/dashboard/settings", icon: Settings },
 ];

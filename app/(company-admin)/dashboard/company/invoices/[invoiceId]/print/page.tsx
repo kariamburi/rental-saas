@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import PrintButton from "./PrintButton";
-import GoBackButton from "./GoBackButton";
 
 export default async function InvoicePrintPage({
     params,
@@ -22,6 +21,8 @@ export default async function InvoicePrintPage({
 
     if (!invoice) notFound();
 
+    const isUtilityOnly = invoice.invoiceType === "UTILITY_ONLY";
+
     return (
         <main className="min-h-screen bg-slate-100 p-6 print:bg-white print:p-0">
             <div className="mx-auto max-w-3xl rounded-3xl bg-white p-8 shadow-xl print:max-w-none print:rounded-none print:p-8 print:shadow-none">
@@ -30,22 +31,34 @@ export default async function InvoicePrintPage({
                         <p className="text-xs font-black uppercase tracking-[0.25em] text-emerald-600">
                             Rental Management System
                         </p>
+
                         <h1 className="mt-2 text-3xl font-black text-slate-950">
-                            Rent Invoice
+                            {isUtilityOnly ? "Utility Bills Invoice" : "Monthly Rent Invoice"}
                         </h1>
+
                         <p className="mt-1 text-sm font-semibold text-slate-500">
                             Invoice No: {invoice.invoiceNo}
                         </p>
+
+                        <span
+                            className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-black ${isUtilityOnly
+                                ? "bg-blue-50 text-blue-700"
+                                : "bg-emerald-50 text-emerald-700"
+                                }`}
+                        >
+                            {isUtilityOnly ? "BILLS ONLY" : "FULL MONTHLY"}
+                        </span>
                     </div>
 
                     <div className="text-right">
                         <div className="mb-3 flex items-center justify-end gap-2 print:hidden">
-                            {/**  <GoBackButton />*/}
                             <PrintButton />
                         </div>
+
                         <p className="mt-3 text-sm font-black text-slate-950 print:mt-0">
                             {invoice.company.name}
                         </p>
+
                         <p className="text-xs font-semibold text-slate-500">
                             {invoice.company.phone || ""}
                         </p>
@@ -60,13 +73,18 @@ export default async function InvoicePrintPage({
                         value={`${invoice.unit.property.name} - Unit ${invoice.unit.unitNumber}`}
                     />
                     <Info title="Status" value={invoice.status} />
+                    <Info title="Billing Month" value={invoice.periodKey} />
                     <Info
                         title="Invoice Date"
-                        value={new Date(invoice.invoiceDate).toLocaleDateString()}
+                        value={new Date(invoice.invoiceDate).toLocaleDateString("en-KE")}
                     />
                     <Info
                         title="Due Date"
-                        value={new Date(invoice.dueDate).toLocaleDateString()}
+                        value={new Date(invoice.dueDate).toLocaleDateString("en-KE")}
+                    />
+                    <Info
+                        title="Invoice Type"
+                        value={isUtilityOnly ? "Bills Only" : "Full Monthly"}
                     />
                 </div>
 
@@ -97,10 +115,12 @@ export default async function InvoicePrintPage({
                                 ))
                             ) : (
                                 <tr className="border-t">
-                                    <td className="p-4 font-bold">Monthly Rent</td>
+                                    <td className="p-4 font-bold">
+                                        {isUtilityOnly ? "Utility Bills" : "Monthly Rent"}
+                                    </td>
                                     <td className="p-4">
                                         <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
-                                            RENT
+                                            {isUtilityOnly ? "UTILITY" : "RENT"}
                                         </span>
                                     </td>
                                     <td className="p-4 text-right font-black">

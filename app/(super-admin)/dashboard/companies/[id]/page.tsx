@@ -2,16 +2,14 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import {
     Building2,
-    DoorOpen,
-    FileText,
-    Home,
     Mail,
     MapPin,
     Phone,
-    Users,
-    WalletCards,
+    ShieldCheck,
+    UserRound,
 } from "lucide-react";
-import Link from "next/link";
+import AddCompanyUserModal from "./AddCompanyUserModal";
+
 
 export default async function CompanyDetailsPage({
     params,
@@ -26,22 +24,20 @@ export default async function CompanyDetailsPage({
 
     if (!company) notFound();
 
-    const [properties, units, tenants, invoices, payments] = await Promise.all([
-        prisma.property.count({ where: { companyId: id } }),
-        prisma.unit.count({ where: { companyId: id } }),
-        prisma.tenant.count({ where: { companyId: id } }),
-        prisma.invoice.count({ where: { companyId: id } }),
-        prisma.payment.count({ where: { companyId: id } }),
-    ]);
+    const users = await prisma.user.findMany({
+        where: { companyId: id },
+        orderBy: { createdAt: "desc" },
+    });
 
     return (
         <main className="p-6">
-            <div className="mb-8 overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-8 text-white shadow-xl">
+            <div className="mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 px-6 py-6 text-white shadow-sm">
                 <div className="flex flex-col justify-between gap-6 md:flex-row md:items-start">
                     <div>
                         <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-300">
-                            Company Workspace
+                            Company Users
                         </p>
+
                         <h1 className="mt-3 text-3xl font-black">{company.name}</h1>
 
                         <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-300">
@@ -57,96 +53,123 @@ export default async function CompanyDetailsPage({
                 </div>
             </div>
 
-            <div className="grid gap-5 md:grid-cols-3 xl:grid-cols-5">
-                <Card title="Properties" value={properties} icon={Home} />
-                <Card title="Units" value={units} icon={DoorOpen} />
-                <Card title="Tenants" value={tenants} icon={Users} />
-                <Card title="Invoices" value={invoices} icon={FileText} />
-                <Card title="Payments" value={payments} icon={WalletCards} />
+            <div className="grid gap-4 md:grid-cols-3">
+                <SummaryCard title="Company Users" value={users.length} />
+                <SummaryCard
+                    title="Active Users"
+                    value={users.filter((u) => u.status === "ACTIVE").length}
+                    success
+                />
+                <SummaryCard
+                    title="Disabled Users"
+                    value={users.filter((u) => u.status !== "ACTIVE").length}
+                    danger
+                />
             </div>
 
-            <div className="mt-8 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-black text-slate-950">Company Modules</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                    Manage this client’s properties, units, tenants, billing and payments.
-                </p>
+            <section className="mt-6">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="mb-4 flex flex-col justify-between gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-center">
+                        <div>
+                            <h2 className="text-xl font-black text-slate-950">
+                                User Accounts
+                            </h2>
+                            <p className="mt-1 text-sm font-semibold text-slate-500">
+                                Add and manage login users for this company only.
+                            </p>
+                        </div>
 
-                <div className="mt-6 grid gap-4 md:grid-cols-3">
-                    <Module
-                        href={`/dashboard/companies/${company.id}/properties`}
-                        title="Properties"
-                        desc="Add rental buildings"
-                    />
-                    <Module
-                        href={`/dashboard/companies/${company.id}/units`}
-                        title="Units"
-                        desc="Manage rooms and houses"
-                    />
-                    <Module
-                        href={`/dashboard/companies/${company.id}/tenants`}
-                        title="Tenants"
-                        desc="Register tenant records"
-                    />
-                    <Module
-                        href={`/dashboard/companies/${company.id}/leases`}
-                        title="Leases"
-                        desc="Manage tenant lease agreements"
-                    />
-                    <Module
-                        href={`/dashboard/companies/${company.id}/meter-readings`}
-                        title="Meter Readings"
-                        desc="Record water and electricity usage"
-                    />
-                    <Module
-                        href={`/dashboard/companies/${company.id}/invoices`}
-                        title="Invoices"
-                        desc="Generate monthly rent"
-                    />
-                    <Module
-                        href={`/dashboard/companies/${company.id}/payments`}
-                        title="Payments"
-                        desc="Record rent payments"
-                    />
-                    <Module
-                        href={`/dashboard/companies/${company.id}/expenses`}
-                        title="Expenses"
-                        desc="Track property costs"
-                    />
+                        <AddCompanyUserModal companyId={company.id} />
+                    </div>
 
-                    <Module
-                        href={`/dashboard/companies/${company.id}/maintenance`}
-                        title="Maintenance"
-                        desc="Track repairs and tenant issues"
-                    />
-                    <Module
-                        href={`/dashboard/companies/${company.id}/reports`}
-                        title="Reports"
-                        desc="View rent performance"
-                    />
+                    <div className="overflow-x-auto">
+                        <table className="w-full min-w-[850px] border-collapse text-[12px]">
+                            <thead>
+                                <tr className="bg-slate-100 text-slate-900">
+                                    <th className="border-r border-slate-200 px-2 py-2 text-left font-bold">
+                                        User
+                                    </th>
+                                    <th className="border-r border-slate-200 px-2 py-2 text-left font-bold">
+                                        Email
+                                    </th>
+                                    <th className="border-r border-slate-200 px-2 py-2 text-left font-bold">
+                                        Role
+                                    </th>
+                                    <th className="border-r border-slate-200 px-2 py-2 text-left font-bold">
+                                        Status
+                                    </th>
+                                    <th className="px-2 py-2 text-left font-bold">
+                                        Created
+                                    </th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                {users.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="px-5 py-12 text-center">
+                                            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                                                <UserRound size={26} />
+                                            </div>
+
+                                            <h3 className="mt-4 text-lg font-black text-slate-950">
+                                                No users yet
+                                            </h3>
+
+                                            <p className="mt-1 text-sm text-slate-500">
+                                                Add the first company admin login account.
+                                            </p>
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    users.map((user) => (
+                                        <tr key={user.id} className="border-b hover:bg-slate-50">
+                                            <td className="px-2 py-2">
+                                                <span className="inline-flex items-center gap-1 font-semibold text-slate-900">
+                                                    <UserRound size={13} />
+                                                    {user.name}
+                                                </span>
+                                            </td>
+
+                                            <td className="px-2 py-2 text-slate-700">
+                                                {user.email}
+                                            </td>
+
+                                            <td className="px-2 py-2 text-slate-700">
+                                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700">
+                                                    <ShieldCheck size={13} />
+                                                    {user.role}
+                                                </span>
+                                            </td>
+
+                                            <td className="px-2 py-2">
+                                                <span
+                                                    className={`rounded-full px-3 py-1 text-[11px] font-bold ${user.status === "ACTIVE"
+                                                        ? "bg-emerald-50 text-emerald-700"
+                                                        : "bg-red-50 text-red-700"
+                                                        }`}
+                                                >
+                                                    {user.status}
+                                                </span>
+                                            </td>
+
+                                            <td className="px-2 py-2 text-slate-600">
+                                                {new Date(user.createdAt).toLocaleDateString(
+                                                    "en-KE"
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
+            </section>
         </main>
     );
 }
-function Module({
-    title,
-    desc,
-    href,
-}: {
-    title: string;
-    desc: string;
-    href: string;
-}) {
-    return (
-        <Link
-            href={href}
-            className="rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-1 hover:border-emerald-300 hover:bg-emerald-50 hover:shadow-md"
-        >
-            <h3 className="font-black text-slate-950">{title}</h3>
-            <p className="mt-1 text-sm font-semibold text-slate-500">{desc}</p>
-        </Link>
-    );
-}
+
 function Info({ icon: Icon, text }: { icon: React.ElementType; text: string }) {
     return (
         <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2">
@@ -156,24 +179,27 @@ function Info({ icon: Icon, text }: { icon: React.ElementType; text: string }) {
     );
 }
 
-function Card({
+function SummaryCard({
     title,
     value,
-    icon: Icon,
+    success,
+    danger,
 }: {
     title: string;
     value: number;
-    icon: React.ElementType;
+    success?: boolean;
+    danger?: boolean;
 }) {
+    const valueClass = danger
+        ? "text-red-700"
+        : success
+            ? "text-emerald-700"
+            : "text-slate-950";
+
     return (
-        <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-                <p className="text-sm font-bold text-slate-500">{title}</p>
-                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                    <Icon size={20} />
-                </span>
-            </div>
-            <h2 className="mt-4 text-4xl font-black text-slate-950">{value}</h2>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm font-bold text-slate-500">{title}</p>
+            <h2 className={`mt-2 text-2xl font-black ${valueClass}`}>{value}</h2>
         </div>
     );
 }

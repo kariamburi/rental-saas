@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
+import ConfirmModal from "@/app/components/ConfirmModal";
 
 export default function DeleteOwnerButton({
     ownerId,
@@ -14,20 +15,23 @@ export default function DeleteOwnerButton({
     linkedProperties: number;
 }) {
     const router = useRouter();
-    const [loading, setLoading] = useState(false);
 
-    async function handleDelete() {
+    const [loading, setLoading] = useState(false);
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [messageOpen, setMessageOpen] = useState(false);
+    const [message, setMessage] = useState("");
+
+    function openDeleteModal() {
         if (linkedProperties > 0) {
-            alert("You cannot delete this owner because they are linked to properties.");
+            setMessage("You cannot delete this owner because they are linked to properties.");
+            setMessageOpen(true);
             return;
         }
 
-        const confirmed = window.confirm(
-            `Delete ${ownerName}? This action cannot be undone.`
-        );
+        setConfirmOpen(true);
+    }
 
-        if (!confirmed) return;
-
+    async function handleDelete() {
         setLoading(true);
 
         try {
@@ -40,26 +44,52 @@ export default function DeleteOwnerButton({
             const data = await res.json();
 
             if (!res.ok || !data.ok) {
-                alert(data.error || "Failed to delete owner");
+                setMessage(data.error || "Failed to delete owner");
+                setMessageOpen(true);
                 return;
             }
 
+            setConfirmOpen(false);
             router.refresh();
         } catch {
-            alert("Something went wrong");
+            setMessage("Something went wrong");
+            setMessageOpen(true);
         } finally {
             setLoading(false);
         }
     }
 
     return (
-        <button
-            onClick={handleDelete}
-            disabled={loading}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50 text-red-600 transition hover:bg-red-100 disabled:opacity-60"
-            title="Delete owner"
-        >
-            <Trash2 size={16} />
-        </button>
+        <>
+            <button
+                type="button"
+                onClick={openDeleteModal}
+                disabled={loading}
+                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-red-50 text-red-600 transition hover:bg-red-100 disabled:opacity-60"
+                title="Delete owner"
+            >
+                <Trash2 size={16} />
+            </button>
+
+            <ConfirmModal
+                open={confirmOpen}
+                onClose={() => setConfirmOpen(false)}
+                onConfirm={handleDelete}
+                loading={loading}
+                danger
+                title="Delete owner?"
+                subtitle={`This will permanently delete ${ownerName}. This action cannot be undone.`}
+                confirmText="Delete Owner"
+            />
+
+            <ConfirmModal
+                open={messageOpen}
+                onClose={() => setMessageOpen(false)}
+                onConfirm={() => setMessageOpen(false)}
+                title="Unable to delete owner"
+                subtitle={message}
+                confirmText="Okay"
+            />
+        </>
     );
 }

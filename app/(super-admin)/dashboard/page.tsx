@@ -1,103 +1,105 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getAuthUser } from "@/lib/auth";
+import { Roles } from "@/lib/roles";
 import {
+    ArrowRight,
     Building2,
-    CreditCard,
+    Gauge,
     ShieldCheck,
-    TrendingUp,
     Users,
 } from "lucide-react";
 
-export default async function DashboardPage() {
+export default async function SuperAdminDashboardPage() {
     const user = await getAuthUser();
 
-    if (!user) {
-        redirect("/login");
-    }
+    if (!user) redirect("/login");
+    if (user.role !== Roles.SUPER_ADMIN) redirect("/dashboard/company");
 
-    const [companies, users, properties, tenants] = await Promise.all([
+    const [companies, activeCompanies, users] = await Promise.all([
         prisma.company.count(),
+        prisma.company.count({
+            where: { status: "ACTIVE" },
+        }),
         prisma.user.count(),
-        prisma.property.count(),
-        prisma.tenant.count(),
     ]);
 
     return (
         <main className="p-6">
-            <div className="mb-8 overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-8 text-white shadow-xl">
+            <div className="mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 px-6 py-6 text-white shadow-sm">
                 <div className="flex flex-col justify-between gap-6 md:flex-row md:items-center">
                     <div>
                         <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-300">
                             Super Admin Dashboard
                         </p>
 
-                        <h2 className="mt-3 text-3xl font-black">
+                        <h1 className="mt-3 text-3xl font-black">
                             Welcome back, {user.name}
-                        </h2>
+                        </h1>
 
-                        <p className="mt-2 max-w-2xl text-slate-300">
-                            Manage registered companies, company admins, subscriptions,
-                            SaaS settings and platform performance from one control center.
+                        <p className="mt-2 max-w-2xl text-sm font-semibold text-slate-300">
+                            Manage companies, users, and switch into company workspaces.
                         </p>
                     </div>
 
-                    <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
-                        <p className="text-sm text-slate-300">Platform status</p>
-                        <p className="mt-1 text-xl font-black text-emerald-300">
-                            Active
-                        </p>
-                    </div>
+                    <Link
+                        href="/dashboard/switch-company"
+                        className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm font-black text-emerald-300 transition hover:bg-white/20"
+                    >
+                        Switch Company
+                        <ArrowRight size={15} />
+                    </Link>
                 </div>
             </div>
 
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-                <Card title="Companies" value={companies} icon={Building2} />
+            <div className="grid gap-4 md:grid-cols-3">
+                <Card title="Total Companies" value={companies} icon={Building2} />
+                <Card
+                    title="Active Companies"
+                    value={activeCompanies}
+                    icon={ShieldCheck}
+                    success
+                />
                 <Card title="System Users" value={users} icon={Users} />
-                <Card title="Properties" value={properties} icon={TrendingUp} />
-                <Card title="Tenants" value={tenants} icon={ShieldCheck} />
             </div>
 
-            <div className="mt-8 grid gap-5 lg:grid-cols-2">
-                <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-                    <h3 className="text-lg font-black text-slate-950">
-                        Quick Actions
-                    </h3>
-
-                    <p className="mt-1 text-sm text-slate-500">
-                        Start SaaS setup from here.
-                    </p>
-
-                    <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                        <Action label="Register Company" href="/dashboard/companies" />
-                        <Action label="Add Company Admin" href="/dashboard/company-admins" />
-                        <Action label="Manage Subscriptions" href="/dashboard/subscriptions" />
-                        <Action label="SaaS Settings" href="/dashboard/settings" />
-                    </div>
-                </section>
-
-                <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                            <CreditCard size={22} />
-                        </div>
-
-                        <div>
-                            <h3 className="text-lg font-black text-slate-950">
-                                Subscription Overview
-                            </h3>
-                            <p className="text-sm text-slate-500">
-                                Subscription billing module will appear here.
-                            </p>
-                        </div>
+            <section className="mt-6">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="mb-4 border-b border-slate-200 pb-4">
+                        <h2 className="text-xl font-black text-slate-950">
+                            Quick Actions
+                        </h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">
+                            Start by choosing a company workspace.
+                        </p>
                     </div>
 
-                    <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-                        Next: add company subscription status, active plans, expired
-                        accounts and renewal reminders.
+                    <div className="grid gap-3 md:grid-cols-2">
+                        <Link
+                            href="/dashboard/switch-company"
+                            className="group rounded-xl border border-slate-200 p-4 transition hover:border-emerald-300 hover:bg-emerald-50"
+                        >
+                            <div className="flex items-center gap-3">
+                                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 group-hover:bg-white">
+                                    <Gauge size={20} />
+                                </span>
+
+                                <div>
+                                    <p className="font-black text-slate-950">
+                                        Switch Company
+                                    </p>
+                                    <p className="text-sm font-semibold text-slate-500">
+                                        Open a company dashboard.
+                                    </p>
+                                </div>
+                            </div>
+                        </Link>
+
+
                     </div>
-                </section>
-            </div>
+                </div>
+            </section>
         </main>
     );
 }
@@ -106,32 +108,29 @@ function Card({
     title,
     value,
     icon: Icon,
+    success,
 }: {
     title: string;
-    value: number;
+    value: number | string;
     icon: React.ElementType;
+    success?: boolean;
 }) {
     return (
-        <div className="group rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
                 <p className="text-sm font-bold text-slate-500">{title}</p>
-                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 transition group-hover:bg-emerald-600 group-hover:text-white">
-                    <Icon size={20} />
+
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                    <Icon size={18} />
                 </span>
             </div>
 
-            <h2 className="mt-4 text-4xl font-black text-slate-950">{value}</h2>
+            <h2
+                className={`mt-2 text-2xl font-black ${success ? "text-emerald-700" : "text-slate-950"
+                    }`}
+            >
+                {value}
+            </h2>
         </div>
-    );
-}
-
-function Action({ label, href }: { label: string; href: string }) {
-    return (
-        <a
-            href={href}
-            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 transition hover:border-emerald-600 hover:bg-emerald-600 hover:text-white"
-        >
-            {label}
-        </a>
     );
 }
