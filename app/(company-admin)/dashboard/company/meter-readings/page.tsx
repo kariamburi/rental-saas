@@ -222,16 +222,16 @@ export default async function MeterReadingsPage() {
                                                                 ? `${baseUrl}/api/public/invoices/${invoice.id}/download`
                                                                 : "";
 
-                                                            const whatsappMessage =
-                                                                buildWhatsappMessage({
-                                                                    tenantName: group.tenantName,
-                                                                    propertyName: property.name,
-                                                                    unitNumber: group.unitNumber,
-                                                                    billingMonth: group.billingMonth,
-                                                                    totalAmount: group.totalAmount,
-                                                                    invoiceUrl,
-                                                                });
 
+                                                            const whatsappMessage = buildWhatsappMessage({
+                                                                tenantName: group.tenantName,
+                                                                propertyName: property.name,
+                                                                unitNumber: group.unitNumber,
+                                                                billingMonth: group.billingMonth,
+                                                                totalAmount: group.totalAmount,
+                                                                invoiceUrl,
+                                                                readings: group.readings,
+                                                            });
                                                             return (
                                                                 <div
                                                                     key={group.key}
@@ -463,8 +463,55 @@ function normalizePhone(phone?: string | null) {
 
     return raw;
 }
-
 function buildWhatsappMessage({
+    tenantName,
+    propertyName,
+    unitNumber,
+    billingMonth,
+    totalAmount,
+    invoiceUrl,
+    readings,
+}: {
+    tenantName: string;
+    propertyName: string;
+    unitNumber: string;
+    billingMonth: string;
+    totalAmount: number;
+    invoiceUrl: string;
+    readings: any[];
+}) {
+    const readingLines = readings
+        .map((reading) => {
+            const billType = reading.type === "WATER" ? "Water" : "Electricity";
+            const previous = Number(reading.previousReading || 0);
+            const current = Number(reading.currentReading || 0);
+            const consumption = Number(reading.unitsUsed || current - previous);
+            const amount = Number(reading.amount || 0);
+
+            return `Your ${billType} bill for the month ${billingMonth} is as follows;
+Previous reading: ${previous.toLocaleString()}
+Current reading: ${current.toLocaleString()}
+Consumption: ${consumption.toLocaleString()}
+
+Amount due: KES ${amount.toLocaleString()}`;
+        })
+        .join("\n\n");
+
+    return `Hello ${tenantName}
+
+Property: ${propertyName}
+Unit: ${unitNumber}
+
+${readingLines}
+
+${readings.length > 1 ? `Total Amount Due: KES ${totalAmount.toLocaleString()}\n\n` : ""}${invoiceUrl
+            ? `Download invoice PDF:
+${invoiceUrl}`
+            : "Kindly request your invoice copy from management."}
+
+Thank You`;
+}
+function buildWhatsappMessage_({
     tenantName,
     propertyName,
     unitNumber,

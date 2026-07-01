@@ -8,7 +8,30 @@ import { notFound } from "next/navigation";
 function money(value: unknown) {
     return `KES ${Number(value || 0).toLocaleString()}`;
 }
+function buildItemDescription(item: any) {
+    const description = String(item.description || "");
 
+    if (!["WATER", "ELECTRICITY", "UTILITY"].includes(String(item.type))) {
+        return description;
+    }
+
+    const match = description.match(/\(([\d,.]+)\s*→\s*([\d,.]+)\s*@\s*KES\s*([\d,.]+)\)/);
+
+    if (!match) return description;
+
+    const previous = Number(match[1].replace(/,/g, ""));
+    const current = Number(match[2].replace(/,/g, ""));
+    const rate = Number(match[3].replace(/,/g, ""));
+    const consumed = current - previous;
+
+    const billTitle = description.split("(")[0].trim();
+
+    return `${billTitle}
+Previous reading: ${previous.toLocaleString()}
+Current reading: ${current.toLocaleString()}
+Total consumed units: ${consumed.toLocaleString()}
+Rate: KES ${rate.toLocaleString()}`;
+}
 export async function GET(
     req: Request,
     { params }: { params: Promise<{ invoiceId: string }> }
@@ -121,14 +144,16 @@ export async function GET(
             y = 40;
         }
 
-        if (index % 2 === 0) {
-            doc.rect(startX, y, 500, 28).fill("#FAFAFA");
-        }
+        const rowHeight = isUtilityOnly ? 58 : 28;
 
+        if (index % 2 === 0) {
+            doc.rect(startX, y, 500, rowHeight).fill("#FAFAFA");
+        }
         doc.fillColor("#111827");
-        doc.text(item.description, startX + 4, y + 9, {
+        const description = buildItemDescription(item);
+
+        doc.text(description, startX + 4, y + 7, {
             width: 285,
-            lineBreak: false,
         });
 
         doc.text(item.type, 334, y + 9, {
@@ -144,7 +169,7 @@ export async function GET(
         });
 
         doc.font("Helvetica");
-        y += 28;
+        y += rowHeight;
     });
 
     y += 20;
