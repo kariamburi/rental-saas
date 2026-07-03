@@ -3,6 +3,34 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 
+const inspectionMaintenanceRoles = [
+    Roles.SUPER_ADMIN,
+    Roles.COMPANY_ADMIN,
+    Roles.MANAGER,
+    Roles.CARETAKER,
+];
+
+function canCreateMaintenanceFromInspection(role: string) {
+    return inspectionMaintenanceRoles.includes(role as any);
+}
+
+function resolveCompanyId(
+    user: { role: string; companyId: string | null },
+    bodyCompanyId?: string
+) {
+    if (user.role === Roles.SUPER_ADMIN) return bodyCompanyId || null;
+
+    if (
+        user.role === Roles.COMPANY_ADMIN ||
+        user.role === Roles.MANAGER ||
+        user.role === Roles.CARETAKER
+    ) {
+        return user.companyId;
+    }
+
+    return null;
+}
+
 export async function POST(req: Request) {
     try {
         const user = await getAuthUser();
@@ -14,16 +42,18 @@ export async function POST(req: Request) {
             );
         }
 
-        if (user.role !== Roles.COMPANY_ADMIN || !user.companyId) {
+        if (!canCreateMaintenanceFromInspection(user.role)) {
             return NextResponse.json(
                 { ok: false, error: "Forbidden" },
                 { status: 403 }
             );
         }
 
-        const { inspectionId } = await req.json();
+        const { companyId: bodyCompanyId, inspectionId } = await req.json();
 
-        if (!inspectionId) {
+        const companyId = resolveCompanyId(user, bodyCompanyId);
+
+        if (!companyId || !inspectionId) {
             return NextResponse.json(
                 { ok: false, error: "Inspection ID is required" },
                 { status: 400 }
@@ -33,7 +63,7 @@ export async function POST(req: Request) {
         const inspection = await prisma.propertyInspection.findFirst({
             where: {
                 id: inspectionId,
-                companyId: user.companyId,
+                companyId,
             },
             include: {
                 property: true,
@@ -70,7 +100,7 @@ export async function POST(req: Request) {
 
         const request = await prisma.maintenanceRequest.create({
             data: {
-                companyId: user.companyId,
+                companyId,
                 propertyId: inspection.propertyId,
                 unitId: inspection.unitId || null,
                 tenantId: inspection.tenantId || null,

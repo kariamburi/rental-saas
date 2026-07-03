@@ -3,12 +3,31 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 
+const meterReadingWriteRoles = [
+    Roles.SUPER_ADMIN,
+    Roles.COMPANY_ADMIN,
+    Roles.MANAGER,
+    Roles.CARETAKER,
+];
+
+function canManageMeterReadings(role: string) {
+    return meterReadingWriteRoles.includes(role as any);
+}
+
 function resolveCompanyId(
     user: { role: string; companyId: string | null },
     bodyCompanyId?: string
 ) {
     if (user.role === Roles.SUPER_ADMIN) return bodyCompanyId || null;
-    if (user.role === Roles.COMPANY_ADMIN) return user.companyId;
+
+    if (
+        user.role === Roles.COMPANY_ADMIN ||
+        user.role === Roles.MANAGER ||
+        user.role === Roles.CARETAKER
+    ) {
+        return user.companyId;
+    }
+
     return null;
 }
 
@@ -31,8 +50,13 @@ async function validateTenant(companyId: string, tenantId: string, unitId: strin
 export async function POST(req: Request) {
     try {
         const user = await getAuthUser();
+
         if (!user) {
             return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (!canManageMeterReadings(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
         }
 
         const body = await req.json();
@@ -143,6 +167,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, readings: created });
     } catch (error) {
         console.error("Create meter readings error:", error);
+
         return NextResponse.json(
             { ok: false, error: "Server error while creating meter readings" },
             { status: 500 }
@@ -153,7 +178,14 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
     try {
         const user = await getAuthUser();
-        if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
+        if (!user) {
+            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (!canManageMeterReadings(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+        }
 
         const body = await req.json();
 
@@ -172,7 +204,10 @@ export async function PATCH(req: Request) {
         const companyId = resolveCompanyId(user, bodyCompanyId);
 
         if (!companyId || !readingId || !tenantId || !unitId || !type || !billingMonth) {
-            return NextResponse.json({ ok: false, error: "Missing required fields" }, { status: 400 });
+            return NextResponse.json(
+                { ok: false, error: "Missing required fields" },
+                { status: 400 }
+            );
         }
 
         const prev = toNumber(previousReading);
@@ -180,7 +215,10 @@ export async function PATCH(req: Request) {
         const rate = toNumber(ratePerUnit);
 
         if (prev === null || curr === null || rate === null) {
-            return NextResponse.json({ ok: false, error: "Invalid numbers" }, { status: 400 });
+            return NextResponse.json(
+                { ok: false, error: "Invalid numbers" },
+                { status: 400 }
+            );
         }
 
         if (curr < prev) {
@@ -195,7 +233,10 @@ export async function PATCH(req: Request) {
         });
 
         if (!existing) {
-            return NextResponse.json({ ok: false, error: "Reading not found" }, { status: 404 });
+            return NextResponse.json(
+                { ok: false, error: "Reading not found" },
+                { status: 404 }
+            );
         }
 
         const duplicate = await prisma.meterReading.findFirst({
@@ -237,6 +278,7 @@ export async function PATCH(req: Request) {
         return NextResponse.json({ ok: true, reading });
     } catch (error) {
         console.error("Update meter reading error:", error);
+
         return NextResponse.json(
             { ok: false, error: "Server error while updating meter reading" },
             { status: 500 }
@@ -247,13 +289,24 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
     try {
         const user = await getAuthUser();
-        if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
+        if (!user) {
+            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (!canManageMeterReadings(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+        }
 
         const { readingId, companyId: bodyCompanyId } = await req.json();
+
         const companyId = resolveCompanyId(user, bodyCompanyId);
 
         if (!companyId || !readingId) {
-            return NextResponse.json({ ok: false, error: "Reading ID is required" }, { status: 400 });
+            return NextResponse.json(
+                { ok: false, error: "Reading ID is required" },
+                { status: 400 }
+            );
         }
 
         const reading = await prisma.meterReading.findFirst({
@@ -261,7 +314,10 @@ export async function DELETE(req: Request) {
         });
 
         if (!reading) {
-            return NextResponse.json({ ok: false, error: "Reading not found" }, { status: 404 });
+            return NextResponse.json(
+                { ok: false, error: "Reading not found" },
+                { status: 404 }
+            );
         }
 
         await prisma.meterReading.delete({
@@ -271,6 +327,7 @@ export async function DELETE(req: Request) {
         return NextResponse.json({ ok: true });
     } catch (error) {
         console.error("Delete meter reading error:", error);
+
         return NextResponse.json(
             { ok: false, error: "Server error while deleting meter reading" },
             { status: 500 }

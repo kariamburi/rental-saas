@@ -3,13 +3,31 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 
+const bookingWriteRoles = [
+    Roles.SUPER_ADMIN,
+    Roles.COMPANY_ADMIN,
+    Roles.MANAGER,
+];
+
+function canManageBookings(role: string) {
+    return bookingWriteRoles.includes(role as any);
+}
+
 function resolveCompanyId(
     user: { role: string; companyId: string | null },
     bodyCompanyId?: string
 ) {
     if (user.role === Roles.SUPER_ADMIN) return bodyCompanyId || null;
-    if (user.role === Roles.COMPANY_ADMIN) return user.companyId;
+
+    if (user.role === Roles.COMPANY_ADMIN || user.role === Roles.MANAGER) {
+        return user.companyId;
+    }
+
     return null;
+}
+
+function toAmount(value: unknown) {
+    return Number(value || 0);
 }
 
 export async function POST(req: Request) {
@@ -18,6 +36,10 @@ export async function POST(req: Request) {
 
         if (!user) {
             return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (!canManageBookings(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
         }
 
         const {
@@ -85,7 +107,7 @@ export async function POST(req: Request) {
                 email: email || null,
                 idNumber: idNumber || null,
                 expectedMoveIn: expectedMoveIn ? new Date(expectedMoveIn) : null,
-                amountPaid: amountPaid || 0,
+                amountPaid: toAmount(amountPaid),
                 notes: notes || null,
                 status: "PENDING",
             },
@@ -94,6 +116,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, booking });
     } catch (error) {
         console.error("Create unit booking error:", error);
+
         return NextResponse.json(
             { ok: false, error: "Server error while creating booking" },
             { status: 500 }
@@ -107,6 +130,10 @@ export async function PUT(req: Request) {
 
         if (!user) {
             return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (!canManageBookings(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
         }
 
         const { companyId: bodyCompanyId, bookingId, status } = await req.json();
@@ -151,6 +178,7 @@ export async function PUT(req: Request) {
         return NextResponse.json({ ok: true, booking });
     } catch (error) {
         console.error("Update booking error:", error);
+
         return NextResponse.json(
             { ok: false, error: "Server error while updating booking" },
             { status: 500 }

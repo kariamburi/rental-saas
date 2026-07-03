@@ -3,12 +3,31 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 
+const maintenanceWriteRoles = [
+    Roles.SUPER_ADMIN,
+    Roles.COMPANY_ADMIN,
+    Roles.MANAGER,
+    Roles.CARETAKER,
+];
+
+function canManageMaintenance(role: string) {
+    return maintenanceWriteRoles.includes(role as any);
+}
+
 function resolveCompanyId(
     user: { role: string; companyId: string | null },
     bodyCompanyId?: string
 ) {
     if (user.role === Roles.SUPER_ADMIN) return bodyCompanyId || null;
-    if (user.role === Roles.COMPANY_ADMIN) return user.companyId;
+
+    if (
+        user.role === Roles.COMPANY_ADMIN ||
+        user.role === Roles.MANAGER ||
+        user.role === Roles.CARETAKER
+    ) {
+        return user.companyId;
+    }
+
     return null;
 }
 
@@ -17,10 +36,11 @@ export async function POST(req: Request) {
         const user = await getAuthUser();
 
         if (!user) {
-            return NextResponse.json(
-                { ok: false, error: "Unauthorized" },
-                { status: 401 }
-            );
+            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (!canManageMaintenance(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
         }
 
         const {
@@ -42,10 +62,7 @@ export async function POST(req: Request) {
         }
 
         const property = await prisma.property.findFirst({
-            where: {
-                id: propertyId,
-                companyId,
-            },
+            where: { id: propertyId, companyId },
         });
 
         if (!property) {
@@ -57,10 +74,7 @@ export async function POST(req: Request) {
 
         if (tenantId) {
             const tenant = await prisma.tenant.findFirst({
-                where: {
-                    id: tenantId,
-                    companyId,
-                },
+                where: { id: tenantId, companyId },
             });
 
             if (!tenant) {
@@ -116,10 +130,11 @@ export async function PUT(req: Request) {
         const user = await getAuthUser();
 
         if (!user) {
-            return NextResponse.json(
-                { ok: false, error: "Unauthorized" },
-                { status: 401 }
-            );
+            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (!canManageMaintenance(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
         }
 
         const { companyId: bodyCompanyId, requestId, status } = await req.json();
@@ -143,10 +158,7 @@ export async function PUT(req: Request) {
         }
 
         const existingRequest = await prisma.maintenanceRequest.findFirst({
-            where: {
-                id: requestId,
-                companyId,
-            },
+            where: { id: requestId, companyId },
         });
 
         if (!existingRequest) {

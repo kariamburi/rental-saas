@@ -3,6 +3,29 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 
+const bookingConvertRoles = [
+    Roles.SUPER_ADMIN,
+    Roles.COMPANY_ADMIN,
+    Roles.MANAGER,
+];
+
+function canConvertBookings(role: string) {
+    return bookingConvertRoles.includes(role as any);
+}
+
+function resolveCompanyId(
+    user: { role: string; companyId: string | null },
+    bodyCompanyId?: string
+) {
+    if (user.role === Roles.SUPER_ADMIN) return bodyCompanyId || null;
+
+    if (user.role === Roles.COMPANY_ADMIN || user.role === Roles.MANAGER) {
+        return user.companyId;
+    }
+
+    return null;
+}
+
 export async function POST(req: Request) {
     try {
         const user = await getAuthUser();
@@ -14,16 +37,18 @@ export async function POST(req: Request) {
             );
         }
 
-        if (user.role !== Roles.COMPANY_ADMIN || !user.companyId) {
+        if (!canConvertBookings(user.role)) {
             return NextResponse.json(
                 { ok: false, error: "Forbidden" },
                 { status: 403 }
             );
         }
 
-        const { bookingId } = await req.json();
+        const { companyId: bodyCompanyId, bookingId } = await req.json();
 
-        if (!bookingId) {
+        const companyId = resolveCompanyId(user, bodyCompanyId);
+
+        if (!companyId || !bookingId) {
             return NextResponse.json(
                 { ok: false, error: "Booking ID is required" },
                 { status: 400 }
@@ -33,7 +58,7 @@ export async function POST(req: Request) {
         const booking = await prisma.unitBooking.findFirst({
             where: {
                 id: bookingId,
-                companyId: user.companyId,
+                companyId,
             },
         });
 
@@ -54,7 +79,7 @@ export async function POST(req: Request) {
         const unit = await prisma.unit.findFirst({
             where: {
                 id: booking.unitId,
-                companyId: user.companyId,
+                companyId,
                 status: "VACANT",
             },
         });
@@ -68,7 +93,7 @@ export async function POST(req: Request) {
 
         const existingTenant = await prisma.tenant.findFirst({
             where: {
-                companyId: user.companyId,
+                companyId,
                 unitId: booking.unitId,
                 status: {
                     in: ["ACTIVE", "NOTICE"],
@@ -86,7 +111,7 @@ export async function POST(req: Request) {
         const tenant = await prisma.$transaction(async (tx) => {
             const createdTenant = await tx.tenant.create({
                 data: {
-                    companyId: user.companyId!,
+                    companyId,
                     unitId: booking.unitId,
                     name: booking.customerName,
                     phone: booking.phone,

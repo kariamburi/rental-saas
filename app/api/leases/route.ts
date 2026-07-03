@@ -3,13 +3,36 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 
+const leaseWriteRoles = [
+    Roles.SUPER_ADMIN,
+    Roles.COMPANY_ADMIN,
+    Roles.MANAGER,
+    Roles.ACCOUNTANT,
+];
+
+function canManageLeases(role: string) {
+    return leaseWriteRoles.includes(role as any);
+}
+
 function resolveCompanyId(
     user: { role: string; companyId: string | null },
     bodyCompanyId?: string
 ) {
     if (user.role === Roles.SUPER_ADMIN) return bodyCompanyId || null;
-    if (user.role === Roles.COMPANY_ADMIN) return user.companyId;
+
+    if (
+        user.role === Roles.COMPANY_ADMIN ||
+        user.role === Roles.MANAGER ||
+        user.role === Roles.ACCOUNTANT
+    ) {
+        return user.companyId;
+    }
+
     return null;
+}
+
+function toAmount(value: unknown) {
+    return Number(value || 0);
 }
 
 export async function POST(req: Request) {
@@ -17,10 +40,11 @@ export async function POST(req: Request) {
         const user = await getAuthUser();
 
         if (!user) {
-            return NextResponse.json(
-                { ok: false, error: "Unauthorized" },
-                { status: 401 }
-            );
+            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (!canManageLeases(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
         }
 
         const {
@@ -46,10 +70,7 @@ export async function POST(req: Request) {
 
         if (!companyId || !tenantId || !unitId || !monthlyRent || !startDate) {
             return NextResponse.json(
-                {
-                    ok: false,
-                    error: "Tenant, unit, monthly rent and start date are required",
-                },
+                { ok: false, error: "Tenant, unit, monthly rent and start date are required" },
                 { status: 400 }
             );
         }
@@ -71,10 +92,7 @@ export async function POST(req: Request) {
         }
 
         const unit = await prisma.unit.findFirst({
-            where: {
-                id: unitId,
-                companyId,
-            },
+            where: { id: unitId, companyId },
         });
 
         if (!unit) {
@@ -104,11 +122,11 @@ export async function POST(req: Request) {
                 companyId,
                 tenantId,
                 unitId,
-                monthlyRent,
-                depositAmount: depositAmount || 0,
-                garbageCharge: garbageCharge || 0,
-                securityCharge: securityCharge || 0,
-                serviceCharge: serviceCharge || 0,
+                monthlyRent: toAmount(monthlyRent),
+                depositAmount: toAmount(depositAmount),
+                garbageCharge: toAmount(garbageCharge),
+                securityCharge: toAmount(securityCharge),
+                serviceCharge: toAmount(serviceCharge),
                 startDate: new Date(startDate),
                 endDate: endDate ? new Date(endDate) : null,
                 billingDay: Number(billingDay || 1),
@@ -135,10 +153,11 @@ export async function PUT(req: Request) {
         const user = await getAuthUser();
 
         if (!user) {
-            return NextResponse.json(
-                { ok: false, error: "Unauthorized" },
-                { status: 401 }
-            );
+            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (!canManageLeases(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
         }
 
         const {
@@ -163,19 +182,13 @@ export async function PUT(req: Request) {
 
         if (!companyId || !leaseId || !monthlyRent || !startDate) {
             return NextResponse.json(
-                {
-                    ok: false,
-                    error: "Lease, monthly rent and start date are required",
-                },
+                { ok: false, error: "Lease, monthly rent and start date are required" },
                 { status: 400 }
             );
         }
 
         const lease = await prisma.lease.findFirst({
-            where: {
-                id: leaseId,
-                companyId,
-            },
+            where: { id: leaseId, companyId },
         });
 
         if (!lease) {
@@ -195,10 +208,7 @@ export async function PUT(req: Request) {
 
         if (invoiceCount > 0 && status === "ENDED") {
             return NextResponse.json(
-                {
-                    ok: false,
-                    error: "Use End Lease button to end leases with invoices",
-                },
+                { ok: false, error: "Use End Lease button to end leases with invoices" },
                 { status: 400 }
             );
         }
@@ -206,11 +216,11 @@ export async function PUT(req: Request) {
         const updatedLease = await prisma.lease.update({
             where: { id: leaseId },
             data: {
-                monthlyRent,
-                depositAmount: depositAmount || 0,
-                garbageCharge: garbageCharge || 0,
-                securityCharge: securityCharge || 0,
-                serviceCharge: serviceCharge || 0,
+                monthlyRent: toAmount(monthlyRent),
+                depositAmount: toAmount(depositAmount),
+                garbageCharge: toAmount(garbageCharge),
+                securityCharge: toAmount(securityCharge),
+                serviceCharge: toAmount(serviceCharge),
                 startDate: new Date(startDate),
                 endDate: endDate ? new Date(endDate) : null,
                 billingDay: Number(billingDay || 1),
@@ -237,10 +247,11 @@ export async function PATCH(req: Request) {
         const user = await getAuthUser();
 
         if (!user) {
-            return NextResponse.json(
-                { ok: false, error: "Unauthorized" },
-                { status: 401 }
-            );
+            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (!canManageLeases(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
         }
 
         const { companyId: bodyCompanyId, leaseId, endDate } = await req.json();
@@ -255,10 +266,7 @@ export async function PATCH(req: Request) {
         }
 
         const lease = await prisma.lease.findFirst({
-            where: {
-                id: leaseId,
-                companyId,
-            },
+            where: { id: leaseId, companyId },
         });
 
         if (!lease) {
@@ -278,23 +286,13 @@ export async function PATCH(req: Request) {
             });
 
             await tx.tenant.updateMany({
-                where: {
-                    id: lease.tenantId,
-                    companyId,
-                },
-                data: {
-                    status: "VACATED",
-                },
+                where: { id: lease.tenantId, companyId },
+                data: { status: "VACATED" },
             });
 
             await tx.unit.updateMany({
-                where: {
-                    id: lease.unitId,
-                    companyId,
-                },
-                data: {
-                    status: "VACANT",
-                },
+                where: { id: lease.unitId, companyId },
+                data: { status: "VACANT" },
             });
         });
 

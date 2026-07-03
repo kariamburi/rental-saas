@@ -3,12 +3,31 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 
+const expenseWriteRoles = [
+    Roles.SUPER_ADMIN,
+    Roles.COMPANY_ADMIN,
+    Roles.MANAGER,
+    Roles.ACCOUNTANT,
+];
+
+function canManageExpenses(role: string) {
+    return expenseWriteRoles.includes(role as any);
+}
+
 function resolveCompanyId(
     user: { role: string; companyId: string | null },
     bodyCompanyId?: string
 ) {
     if (user.role === Roles.SUPER_ADMIN) return bodyCompanyId || null;
-    if (user.role === Roles.COMPANY_ADMIN) return user.companyId;
+
+    if (
+        user.role === Roles.COMPANY_ADMIN ||
+        user.role === Roles.MANAGER ||
+        user.role === Roles.ACCOUNTANT
+    ) {
+        return user.companyId;
+    }
+
     return null;
 }
 
@@ -17,10 +36,11 @@ export async function POST(req: Request) {
         const user = await getAuthUser();
 
         if (!user) {
-            return NextResponse.json(
-                { ok: false, error: "Unauthorized" },
-                { status: 401 }
-            );
+            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (!canManageExpenses(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
         }
 
         const {
@@ -58,7 +78,7 @@ export async function POST(req: Request) {
                 propertyId,
                 category,
                 description: description || null,
-                amount,
+                amount: Number(amount),
                 expenseDate: expenseDate ? new Date(expenseDate) : new Date(),
             },
         });
@@ -79,10 +99,11 @@ export async function PUT(req: Request) {
         const user = await getAuthUser();
 
         if (!user) {
-            return NextResponse.json(
-                { ok: false, error: "Unauthorized" },
-                { status: 401 }
-            );
+            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (!canManageExpenses(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
         }
 
         const {
@@ -132,7 +153,7 @@ export async function PUT(req: Request) {
                 propertyId,
                 category,
                 description: description || null,
-                amount,
+                amount: Number(amount),
                 expenseDate: expenseDate ? new Date(expenseDate) : new Date(),
             },
         });
@@ -153,10 +174,11 @@ export async function DELETE(req: Request) {
         const user = await getAuthUser();
 
         if (!user) {
-            return NextResponse.json(
-                { ok: false, error: "Unauthorized" },
-                { status: 401 }
-            );
+            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (!canManageExpenses(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
         }
 
         const { companyId: bodyCompanyId, expenseId } = await req.json();

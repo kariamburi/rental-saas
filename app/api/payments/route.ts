@@ -3,12 +3,31 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 
+const paymentWriteRoles = [
+    Roles.SUPER_ADMIN,
+    Roles.COMPANY_ADMIN,
+    Roles.MANAGER,
+    Roles.ACCOUNTANT,
+];
+
+function canManagePayments(role: string) {
+    return paymentWriteRoles.includes(role as any);
+}
+
 function resolveCompanyId(
     user: { role: string; companyId: string | null },
     bodyCompanyId?: string
 ) {
     if (user.role === Roles.SUPER_ADMIN) return bodyCompanyId || null;
-    if (user.role === Roles.COMPANY_ADMIN) return user.companyId;
+
+    if (
+        user.role === Roles.COMPANY_ADMIN ||
+        user.role === Roles.MANAGER ||
+        user.role === Roles.ACCOUNTANT
+    ) {
+        return user.companyId;
+    }
+
     return null;
 }
 
@@ -20,6 +39,13 @@ export async function POST(req: Request) {
             return NextResponse.json(
                 { ok: false, error: "Unauthorized" },
                 { status: 401 }
+            );
+        }
+
+        if (!canManagePayments(user.role)) {
+            return NextResponse.json(
+                { ok: false, error: "Forbidden" },
+                { status: 403 }
             );
         }
 
@@ -58,9 +84,8 @@ export async function POST(req: Request) {
         const payAmount = Number(amount);
         const currentPaid = Number(invoice.paidAmount);
         const invoiceAmount = Number(invoice.amount);
-        const currentBalance = Number(invoice.balance);
 
-        if (payAmount <= 0) {
+        if (!Number.isFinite(payAmount) || payAmount <= 0) {
             return NextResponse.json(
                 { ok: false, error: "Payment amount must be greater than zero" },
                 { status: 400 }
@@ -72,8 +97,6 @@ export async function POST(req: Request) {
 
         const newStatus =
             newBalance <= 0 ? "PAID" : newPaidAmount > 0 ? "PARTIAL" : "PENDING";
-
-
 
         const payment = await prisma.$transaction(async (tx) => {
             const createdPayment = await tx.payment.create({

@@ -4,6 +4,43 @@ import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 import { getCompanySubscription } from "@/lib/get-company-subscription";
 
+const propertyWriteRoles = [
+    Roles.SUPER_ADMIN,
+    Roles.COMPANY_ADMIN,
+    Roles.MANAGER,
+];
+
+function canManageProperties(role: string) {
+    return propertyWriteRoles.includes(role as any);
+}
+
+async function resolveCompanyId(
+    user: { role: string; companyId: string | null },
+    bodyCompanyId?: string,
+    propertyId?: string
+) {
+    if (user.role === Roles.SUPER_ADMIN) {
+        if (bodyCompanyId) return bodyCompanyId;
+
+        if (propertyId) {
+            const property = await prisma.property.findUnique({
+                where: { id: propertyId },
+                select: { companyId: true },
+            });
+
+            return property?.companyId || null;
+        }
+
+        return null;
+    }
+
+    if (user.role === Roles.COMPANY_ADMIN || user.role === Roles.MANAGER) {
+        return user.companyId;
+    }
+
+    return null;
+}
+
 export async function POST(req: Request) {
     try {
         const user = await getAuthUser();
@@ -15,18 +52,17 @@ export async function POST(req: Request) {
             );
         }
 
+        if (!canManageProperties(user.role)) {
+            return NextResponse.json(
+                { ok: false, error: "Forbidden" },
+                { status: 403 }
+            );
+        }
+
         const { companyId: bodyCompanyId, name, location, description } =
             await req.json();
 
-        let companyId: string | null = null;
-
-        if (user.role === Roles.SUPER_ADMIN) {
-            companyId = bodyCompanyId;
-        }
-
-        if (user.role === Roles.COMPANY_ADMIN) {
-            companyId = user.companyId;
-        }
+        const companyId = await resolveCompanyId(user, bodyCompanyId);
 
         if (!companyId || !name) {
             return NextResponse.json(
@@ -94,21 +130,16 @@ export async function PATCH(req: Request) {
             );
         }
 
+        if (!canManageProperties(user.role)) {
+            return NextResponse.json(
+                { ok: false, error: "Forbidden" },
+                { status: 403 }
+            );
+        }
+
         const { propertyId, name, location, description } = await req.json();
 
-        let companyId: string | null = null;
-
-        if (user.role === Roles.COMPANY_ADMIN) {
-            companyId = user.companyId;
-        }
-
-        if (user.role === Roles.SUPER_ADMIN) {
-            const existingProperty = await prisma.property.findUnique({
-                where: { id: propertyId },
-            });
-
-            companyId = existingProperty?.companyId || null;
-        }
+        const companyId = await resolveCompanyId(user, undefined, propertyId);
 
         if (!companyId || !propertyId || !name) {
             return NextResponse.json(
@@ -162,21 +193,16 @@ export async function DELETE(req: Request) {
             );
         }
 
+        if (!canManageProperties(user.role)) {
+            return NextResponse.json(
+                { ok: false, error: "Forbidden" },
+                { status: 403 }
+            );
+        }
+
         const { propertyId } = await req.json();
 
-        let companyId: string | null = null;
-
-        if (user.role === Roles.COMPANY_ADMIN) {
-            companyId = user.companyId;
-        }
-
-        if (user.role === Roles.SUPER_ADMIN) {
-            const existingProperty = await prisma.property.findUnique({
-                where: { id: propertyId },
-            });
-
-            companyId = existingProperty?.companyId || null;
-        }
+        const companyId = await resolveCompanyId(user, undefined, propertyId);
 
         if (!companyId || !propertyId) {
             return NextResponse.json(

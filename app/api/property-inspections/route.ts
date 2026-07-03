@@ -3,25 +3,48 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 
+const inspectionWriteRoles = [
+    Roles.SUPER_ADMIN,
+    Roles.COMPANY_ADMIN,
+    Roles.MANAGER,
+    Roles.CARETAKER,
+];
+
+function canManageInspections(role: string) {
+    return inspectionWriteRoles.includes(role as any);
+}
+
+function resolveCompanyId(
+    user: { role: string; companyId: string | null },
+    bodyCompanyId?: string
+) {
+    if (user.role === Roles.SUPER_ADMIN) return bodyCompanyId || null;
+
+    if (
+        user.role === Roles.COMPANY_ADMIN ||
+        user.role === Roles.MANAGER ||
+        user.role === Roles.CARETAKER
+    ) {
+        return user.companyId;
+    }
+
+    return null;
+}
+
 export async function POST(req: Request) {
     try {
         const user = await getAuthUser();
 
         if (!user) {
-            return NextResponse.json(
-                { ok: false, error: "Unauthorized" },
-                { status: 401 }
-            );
+            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         }
 
-        if (user.role !== Roles.COMPANY_ADMIN || !user.companyId) {
-            return NextResponse.json(
-                { ok: false, error: "Forbidden" },
-                { status: 403 }
-            );
+        if (!canManageInspections(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
         }
 
         const {
+            companyId: bodyCompanyId,
             propertyId,
             unitId,
             tenantId,
@@ -32,7 +55,9 @@ export async function POST(req: Request) {
             items,
         } = await req.json();
 
-        if (!propertyId || !inspectionDate) {
+        const companyId = resolveCompanyId(user, bodyCompanyId);
+
+        if (!companyId || !propertyId || !inspectionDate) {
             return NextResponse.json(
                 { ok: false, error: "Property and inspection date are required" },
                 { status: 400 }
@@ -40,10 +65,7 @@ export async function POST(req: Request) {
         }
 
         const property = await prisma.property.findFirst({
-            where: {
-                id: propertyId,
-                companyId: user.companyId,
-            },
+            where: { id: propertyId, companyId },
         });
 
         if (!property) {
@@ -58,7 +80,7 @@ export async function POST(req: Request) {
                 where: {
                     id: unitId,
                     propertyId,
-                    companyId: user.companyId,
+                    companyId,
                 },
             });
 
@@ -74,7 +96,7 @@ export async function POST(req: Request) {
             const tenant = await prisma.tenant.findFirst({
                 where: {
                     id: tenantId,
-                    companyId: user.companyId,
+                    companyId,
                     unitId: unitId || undefined,
                 },
             });
@@ -89,7 +111,7 @@ export async function POST(req: Request) {
 
         const inspection = await prisma.propertyInspection.create({
             data: {
-                companyId: user.companyId,
+                companyId,
                 propertyId,
                 unitId: unitId || null,
                 tenantId: tenantId || null,
@@ -123,27 +145,24 @@ export async function POST(req: Request) {
         );
     }
 }
+
 export async function PUT(req: Request) {
     try {
         const user = await getAuthUser();
 
         if (!user) {
-            return NextResponse.json(
-                { ok: false, error: "Unauthorized" },
-                { status: 401 }
-            );
+            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         }
 
-        if (user.role !== Roles.COMPANY_ADMIN || !user.companyId) {
-            return NextResponse.json(
-                { ok: false, error: "Forbidden" },
-                { status: 403 }
-            );
+        if (!canManageInspections(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
         }
 
-        const { inspectionId, status } = await req.json();
+        const { companyId: bodyCompanyId, inspectionId, status } = await req.json();
 
-        if (!inspectionId || !status) {
+        const companyId = resolveCompanyId(user, bodyCompanyId);
+
+        if (!companyId || !inspectionId || !status) {
             return NextResponse.json(
                 { ok: false, error: "Inspection and status are required" },
                 { status: 400 }
@@ -162,7 +181,7 @@ export async function PUT(req: Request) {
         const inspection = await prisma.propertyInspection.findFirst({
             where: {
                 id: inspectionId,
-                companyId: user.companyId,
+                companyId,
             },
         });
 

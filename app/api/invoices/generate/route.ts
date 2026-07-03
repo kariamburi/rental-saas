@@ -18,20 +18,25 @@ function resolveCompanyId(
     if (user.role === Roles.SUPER_ADMIN) return bodyCompanyId || null;
 
     if (
-        [
-            Roles.COMPANY_ADMIN,
-            Roles.MANAGER,
-            Roles.ACCOUNTANT,
-            Roles.CARETAKER,
-            Roles.VIEWER,
-        ].includes(user.role as any)
+        user.role === Roles.COMPANY_ADMIN ||
+        user.role === Roles.MANAGER ||
+        user.role === Roles.ACCOUNTANT
     ) {
         return user.companyId;
     }
 
     return null;
 }
+const invoiceGenerateRoles = [
+    Roles.SUPER_ADMIN,
+    Roles.COMPANY_ADMIN,
+    Roles.MANAGER,
+    Roles.ACCOUNTANT,
+];
 
+function canGenerateInvoices(role: string) {
+    return invoiceGenerateRoles.includes(role as any);
+}
 export async function POST(req: Request) {
     try {
         const user = await getAuthUser();
@@ -42,7 +47,12 @@ export async function POST(req: Request) {
                 { status: 401 }
             );
         }
-
+        if (!canGenerateInvoices(user.role)) {
+            return NextResponse.json(
+                { ok: false, error: "Forbidden" },
+                { status: 403 }
+            );
+        }
         const {
             companyId: bodyCompanyId,
             year,

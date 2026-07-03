@@ -3,12 +3,31 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 
+const paymentReverseRoles = [
+    Roles.SUPER_ADMIN,
+    Roles.COMPANY_ADMIN,
+    Roles.MANAGER,
+    Roles.ACCOUNTANT,
+];
+
+function canReversePayments(role: string) {
+    return paymentReverseRoles.includes(role as any);
+}
+
 function resolveCompanyId(
     user: { role: string; companyId: string | null },
     bodyCompanyId?: string
 ) {
     if (user.role === Roles.SUPER_ADMIN) return bodyCompanyId || null;
-    if (user.role === Roles.COMPANY_ADMIN) return user.companyId;
+
+    if (
+        user.role === Roles.COMPANY_ADMIN ||
+        user.role === Roles.MANAGER ||
+        user.role === Roles.ACCOUNTANT
+    ) {
+        return user.companyId;
+    }
+
     return null;
 }
 
@@ -32,6 +51,13 @@ export async function POST(req: Request) {
             return NextResponse.json(
                 { ok: false, error: "Unauthorized" },
                 { status: 401 }
+            );
+        }
+
+        if (!canReversePayments(user.role)) {
+            return NextResponse.json(
+                { ok: false, error: "Forbidden" },
+                { status: 403 }
             );
         }
 

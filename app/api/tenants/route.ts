@@ -3,9 +3,26 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 
-function resolveCompanyId(user: { role: string; companyId: string | null }, bodyCompanyId?: string) {
+const tenantWriteRoles = [
+    Roles.SUPER_ADMIN,
+    Roles.COMPANY_ADMIN,
+    Roles.MANAGER,
+];
+
+function canManageTenants(role: string) {
+    return tenantWriteRoles.includes(role as any);
+}
+
+function resolveCompanyId(
+    user: { role: string; companyId: string | null },
+    bodyCompanyId?: string
+) {
     if (user.role === Roles.SUPER_ADMIN) return bodyCompanyId || null;
-    if (user.role === Roles.COMPANY_ADMIN) return user.companyId;
+
+    if (user.role === Roles.COMPANY_ADMIN || user.role === Roles.MANAGER) {
+        return user.companyId;
+    }
+
     return null;
 }
 
@@ -14,7 +31,17 @@ export async function POST(req: Request) {
         const user = await getAuthUser();
 
         if (!user) {
-            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+            return NextResponse.json(
+                { ok: false, error: "Unauthorized" },
+                { status: 401 }
+            );
+        }
+
+        if (!canManageTenants(user.role)) {
+            return NextResponse.json(
+                { ok: false, error: "Forbidden" },
+                { status: 403 }
+            );
         }
 
         const {
@@ -106,68 +133,22 @@ export async function POST(req: Request) {
     }
 }
 
-export async function DELETE(req: Request) {
-    try {
-        const user = await getAuthUser();
-
-        if (!user) {
-            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-        }
-
-        const { tenantId, companyId: bodyCompanyId } = await req.json();
-
-        const companyId = resolveCompanyId(user, bodyCompanyId);
-
-        if (!companyId || !tenantId) {
-            return NextResponse.json(
-                { ok: false, error: "Tenant ID is required" },
-                { status: 400 }
-            );
-        }
-
-        const tenant = await prisma.tenant.findFirst({
-            where: { id: tenantId, companyId },
-        });
-
-        if (!tenant) {
-            return NextResponse.json(
-                { ok: false, error: "Tenant not found" },
-                { status: 404 }
-            );
-        }
-
-        await prisma.$transaction(async (tx) => {
-            await tx.tenant.delete({
-                where: { id: tenantId },
-            });
-
-            if (tenant.unitId) {
-                await tx.unit.updateMany({
-                    where: {
-                        id: tenant.unitId,
-                        companyId,
-                    },
-                    data: { status: "VACANT" },
-                });
-            }
-        });
-
-        return NextResponse.json({ ok: true });
-    } catch (error) {
-        console.error("Delete tenant error:", error);
-        return NextResponse.json(
-            { ok: false, error: "Server error while deleting tenant" },
-            { status: 500 }
-        );
-    }
-}
-
 export async function PUT(req: Request) {
     try {
         const user = await getAuthUser();
 
         if (!user) {
-            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+            return NextResponse.json(
+                { ok: false, error: "Unauthorized" },
+                { status: 401 }
+            );
+        }
+
+        if (!canManageTenants(user.role)) {
+            return NextResponse.json(
+                { ok: false, error: "Forbidden" },
+                { status: 403 }
+            );
         }
 
         const {
@@ -205,10 +186,7 @@ export async function PUT(req: Request) {
         }
 
         const selectedUnit = await prisma.unit.findFirst({
-            where: {
-                id: unitId,
-                companyId,
-            },
+            where: { id: unitId, companyId },
         });
 
         if (!selectedUnit) {
@@ -237,19 +215,13 @@ export async function PUT(req: Request) {
         const updatedTenant = await prisma.$transaction(async (tx) => {
             if (existingTenant.unitId && existingTenant.unitId !== unitId) {
                 await tx.unit.updateMany({
-                    where: {
-                        id: existingTenant.unitId,
-                        companyId,
-                    },
+                    where: { id: existingTenant.unitId, companyId },
                     data: { status: "VACANT" },
                 });
             }
 
             await tx.unit.updateMany({
-                where: {
-                    id: unitId,
-                    companyId,
-                },
+                where: { id: unitId, companyId },
                 data: {
                     status: status === "VACATED" ? "VACANT" : "OCCUPIED",
                 },
@@ -276,6 +248,69 @@ export async function PUT(req: Request) {
         console.error("Update tenant error:", error);
         return NextResponse.json(
             { ok: false, error: "Server error while updating tenant" },
+            { status: 500 }
+        );
+    }
+}
+
+export async function DELETE(req: Request) {
+    try {
+        const user = await getAuthUser();
+
+        if (!user) {
+            return NextResponse.json(
+                { ok: false, error: "Unauthorized" },
+                { status: 401 }
+            );
+        }
+
+        if (!canManageTenants(user.role)) {
+            return NextResponse.json(
+                { ok: false, error: "Forbidden" },
+                { status: 403 }
+            );
+        }
+
+        const { tenantId, companyId: bodyCompanyId } = await req.json();
+
+        const companyId = resolveCompanyId(user, bodyCompanyId);
+
+        if (!companyId || !tenantId) {
+            return NextResponse.json(
+                { ok: false, error: "Tenant ID is required" },
+                { status: 400 }
+            );
+        }
+
+        const tenant = await prisma.tenant.findFirst({
+            where: { id: tenantId, companyId },
+        });
+
+        if (!tenant) {
+            return NextResponse.json(
+                { ok: false, error: "Tenant not found" },
+                { status: 404 }
+            );
+        }
+
+        await prisma.$transaction(async (tx) => {
+            await tx.tenant.delete({
+                where: { id: tenantId },
+            });
+
+            if (tenant.unitId) {
+                await tx.unit.updateMany({
+                    where: { id: tenant.unitId, companyId },
+                    data: { status: "VACANT" },
+                });
+            }
+        });
+
+        return NextResponse.json({ ok: true });
+    } catch (error) {
+        console.error("Delete tenant error:", error);
+        return NextResponse.json(
+            { ok: false, error: "Server error while deleting tenant" },
             { status: 500 }
         );
     }

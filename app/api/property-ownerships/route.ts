@@ -3,6 +3,29 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 
+const propertyOwnershipWriteRoles = [
+    Roles.SUPER_ADMIN,
+    Roles.COMPANY_ADMIN,
+    Roles.MANAGER,
+];
+
+function canManagePropertyOwnerships(role: string) {
+    return propertyOwnershipWriteRoles.includes(role as any);
+}
+
+function resolveCompanyId(
+    user: { role: string; companyId: string | null },
+    bodyCompanyId?: string
+) {
+    if (user.role === Roles.SUPER_ADMIN) return bodyCompanyId || null;
+
+    if (user.role === Roles.COMPANY_ADMIN || user.role === Roles.MANAGER) {
+        return user.companyId;
+    }
+
+    return null;
+}
+
 export async function POST(req: Request) {
     try {
         const user = await getAuthUser();
@@ -14,16 +37,23 @@ export async function POST(req: Request) {
             );
         }
 
-        if (user.role !== Roles.COMPANY_ADMIN || !user.companyId) {
+        if (!canManagePropertyOwnerships(user.role)) {
             return NextResponse.json(
                 { ok: false, error: "Forbidden" },
                 { status: 403 }
             );
         }
 
-        const { ownerId, propertyId, percentage } = await req.json();
+        const {
+            companyId: bodyCompanyId,
+            ownerId,
+            propertyId,
+            percentage,
+        } = await req.json();
 
-        if (!ownerId || !propertyId || !percentage) {
+        const companyId = resolveCompanyId(user, bodyCompanyId);
+
+        if (!companyId || !ownerId || !propertyId || !percentage) {
             return NextResponse.json(
                 { ok: false, error: "Owner, property and percentage are required" },
                 { status: 400 }
@@ -33,7 +63,7 @@ export async function POST(req: Request) {
         const owner = await prisma.owner.findFirst({
             where: {
                 id: ownerId,
-                companyId: user.companyId,
+                companyId,
             },
         });
 
@@ -47,7 +77,7 @@ export async function POST(req: Request) {
         const property = await prisma.property.findFirst({
             where: {
                 id: propertyId,
-                companyId: user.companyId,
+                companyId,
             },
         });
 
@@ -60,7 +90,7 @@ export async function POST(req: Request) {
 
         const percent = Number(percentage);
 
-        if (Number.isNaN(percent) || percent <= 0 || percent > 100) {
+        if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
             return NextResponse.json(
                 { ok: false, error: "Percentage must be between 1 and 100" },
                 { status: 400 }
@@ -69,7 +99,7 @@ export async function POST(req: Request) {
 
         const existing = await prisma.propertyOwnership.findFirst({
             where: {
-                companyId: user.companyId,
+                companyId,
                 ownerId,
                 propertyId,
             },
@@ -84,7 +114,7 @@ export async function POST(req: Request) {
 
         const totalExistingPercentage = await prisma.propertyOwnership.aggregate({
             where: {
-                companyId: user.companyId,
+                companyId,
                 propertyId,
             },
             _sum: {
@@ -107,7 +137,7 @@ export async function POST(req: Request) {
 
         const ownership = await prisma.propertyOwnership.create({
             data: {
-                companyId: user.companyId,
+                companyId,
                 ownerId,
                 propertyId,
                 percentage: percent,

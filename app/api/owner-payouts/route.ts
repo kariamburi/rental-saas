@@ -3,6 +3,34 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 
+const ownerPayoutWriteRoles = [
+    Roles.SUPER_ADMIN,
+    Roles.COMPANY_ADMIN,
+    Roles.MANAGER,
+    Roles.ACCOUNTANT,
+];
+
+function canManageOwnerPayouts(role: string) {
+    return ownerPayoutWriteRoles.includes(role as any);
+}
+
+function resolveCompanyId(
+    user: { role: string; companyId: string | null },
+    bodyCompanyId?: string
+) {
+    if (user.role === Roles.SUPER_ADMIN) return bodyCompanyId || null;
+
+    if (
+        user.role === Roles.COMPANY_ADMIN ||
+        user.role === Roles.MANAGER ||
+        user.role === Roles.ACCOUNTANT
+    ) {
+        return user.companyId;
+    }
+
+    return null;
+}
+
 export async function POST(req: Request) {
     try {
         const user = await getAuthUser();
@@ -14,17 +42,26 @@ export async function POST(req: Request) {
             );
         }
 
-        if (user.role !== Roles.COMPANY_ADMIN || !user.companyId) {
+        if (!canManageOwnerPayouts(user.role)) {
             return NextResponse.json(
                 { ok: false, error: "Forbidden" },
                 { status: 403 }
             );
         }
 
-        const { ownerId, amount, method, reference, payoutDate, notes } =
-            await req.json();
+        const {
+            companyId: bodyCompanyId,
+            ownerId,
+            amount,
+            method,
+            reference,
+            payoutDate,
+            notes,
+        } = await req.json();
 
-        if (!ownerId || !amount || !method) {
+        const companyId = resolveCompanyId(user, bodyCompanyId);
+
+        if (!companyId || !ownerId || !amount || !method) {
             return NextResponse.json(
                 { ok: false, error: "Owner, amount and method are required" },
                 { status: 400 }
@@ -34,7 +71,7 @@ export async function POST(req: Request) {
         const owner = await prisma.owner.findFirst({
             where: {
                 id: ownerId,
-                companyId: user.companyId,
+                companyId,
                 status: "ACTIVE",
             },
         });
@@ -48,7 +85,7 @@ export async function POST(req: Request) {
 
         const payAmount = Number(amount);
 
-        if (Number.isNaN(payAmount) || payAmount <= 0) {
+        if (!Number.isFinite(payAmount) || payAmount <= 0) {
             return NextResponse.json(
                 { ok: false, error: "Amount must be greater than zero" },
                 { status: 400 }
@@ -57,7 +94,7 @@ export async function POST(req: Request) {
 
         const payout = await prisma.ownerPayout.create({
             data: {
-                companyId: user.companyId,
+                companyId,
                 ownerId,
                 amount: payAmount,
                 method,

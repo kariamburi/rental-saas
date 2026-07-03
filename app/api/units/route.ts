@@ -3,15 +3,57 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { Roles } from "@/lib/roles";
 
+const unitWriteRoles = [
+    Roles.SUPER_ADMIN,
+    Roles.COMPANY_ADMIN,
+    Roles.MANAGER,
+];
+
+function canManageUnits(role: string) {
+    return unitWriteRoles.includes(role as any);
+}
+
+async function resolveCompanyId(
+    user: { role: string; companyId: string | null },
+    bodyCompanyId?: string,
+    unitId?: string
+) {
+    if (user.role === Roles.SUPER_ADMIN) {
+        if (bodyCompanyId) return bodyCompanyId;
+
+        if (unitId) {
+            const unit = await prisma.unit.findUnique({
+                where: { id: unitId },
+                select: { companyId: true },
+            });
+
+            return unit?.companyId || null;
+        }
+
+        return null;
+    }
+
+    if (user.role === Roles.COMPANY_ADMIN || user.role === Roles.MANAGER) {
+        return user.companyId;
+    }
+
+    return null;
+}
+
+function toAmount(value: unknown) {
+    return Number(value || 0);
+}
+
 export async function POST(req: Request) {
     try {
         const user = await getAuthUser();
 
         if (!user) {
-            return NextResponse.json(
-                { ok: false, error: "Unauthorized" },
-                { status: 401 }
-            );
+            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (!canManageUnits(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
         }
 
         const {
@@ -23,15 +65,7 @@ export async function POST(req: Request) {
             status,
         } = await req.json();
 
-        let companyId: string | null = null;
-
-        if (user.role === Roles.SUPER_ADMIN) {
-            companyId = bodyCompanyId;
-        }
-
-        if (user.role === Roles.COMPANY_ADMIN) {
-            companyId = user.companyId;
-        }
+        const companyId = await resolveCompanyId(user, bodyCompanyId);
 
         if (!companyId || !propertyId || !unitNumber || !rentAmount) {
             return NextResponse.json(
@@ -63,7 +97,7 @@ export async function POST(req: Request) {
                 propertyId,
                 unitNumber,
                 unitSize: unitSize || null,
-                rentAmount,
+                rentAmount: toAmount(rentAmount),
                 status: status || "VACANT",
             },
         });
@@ -84,10 +118,11 @@ export async function PATCH(req: Request) {
         const user = await getAuthUser();
 
         if (!user) {
-            return NextResponse.json(
-                { ok: false, error: "Unauthorized" },
-                { status: 401 }
-            );
+            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (!canManageUnits(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
         }
 
         const {
@@ -99,19 +134,7 @@ export async function PATCH(req: Request) {
             status,
         } = await req.json();
 
-        let companyId: string | null = null;
-
-        if (user.role === Roles.SUPER_ADMIN) {
-            const existingUnit = await prisma.unit.findUnique({
-                where: { id: unitId },
-            });
-
-            companyId = existingUnit?.companyId || null;
-        }
-
-        if (user.role === Roles.COMPANY_ADMIN) {
-            companyId = user.companyId;
-        }
+        const companyId = await resolveCompanyId(user, undefined, unitId);
 
         if (!companyId || !unitId || !propertyId || !unitNumber || !rentAmount) {
             return NextResponse.json(
@@ -157,7 +180,7 @@ export async function PATCH(req: Request) {
                 propertyId,
                 unitNumber,
                 unitSize: unitSize || null,
-                rentAmount,
+                rentAmount: toAmount(rentAmount),
                 status: status || existingUnit.status,
             },
         });
@@ -178,19 +201,28 @@ export async function DELETE(req: Request) {
         const user = await getAuthUser();
 
         if (!user) {
-            return NextResponse.json(
-                { ok: false, error: "Unauthorized" },
-                { status: 401 }
-            );
+            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
         }
 
-        const { unitId } = await req.json();
+        if (!canManageUnits(user.role)) {
+            return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+        }
+
+        const { unitId, companyId: bodyCompanyId } = await req.json();
+
+        const companyId = await resolveCompanyId(user, bodyCompanyId, unitId);
+
+        if (!companyId || !unitId) {
+            return NextResponse.json(
+                { ok: false, error: "Unit ID is required" },
+                { status: 400 }
+            );
+        }
 
         const unit = await prisma.unit.findFirst({
             where: {
                 id: unitId,
-                companyId:
-                    user.role === Roles.COMPANY_ADMIN ? user.companyId || undefined : undefined,
+                companyId,
             },
         });
 
