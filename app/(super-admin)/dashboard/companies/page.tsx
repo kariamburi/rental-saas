@@ -3,7 +3,8 @@ import { Building2, Mail, Phone, Plus, ShieldCheck } from "lucide-react";
 import AddCompanyModal from "./AddCompanyModal";
 import Link from "next/link";
 import DeleteCompanyButton from "./DeleteCompanyButton";
-
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 export default async function CompaniesPage() {
     const companies = await prisma.company.findMany({
         orderBy: { createdAt: "desc" },

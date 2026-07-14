@@ -3,7 +3,8 @@ import { CreditCard } from "lucide-react";
 import RenewSubscriptionButton from "./RenewSubscriptionButton";
 import PlanModal from "./PlanModal";
 import DeletePlanButton from "./DeletePlanButton";
-
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 export default async function SubscriptionsPage() {
     const [plans, subscriptions] = await Promise.all([
         prisma.subscriptionPlan.findMany({
@@ -34,15 +35,31 @@ export default async function SubscriptionsPage() {
         },
     });
 
-    const active = subscriptions.filter((s) => s.status === "ACTIVE").length;
+    const active = subscriptions.filter(
+        (subscription) =>
+            ["ACTIVE", "TRIAL"].includes(subscription.status) &&
+            subscription.expiresAt >= new Date()
+    ).length;
 
     const expired = subscriptions.filter(
         (s) => s.status === "EXPIRED" || s.expiresAt < new Date()
     ).length;
 
+
+
+    const now = new Date();
+
     const monthlyExpected = subscriptions
-        .filter((s) => s.status === "ACTIVE" && s.expiresAt >= new Date())
-        .reduce((sum, s) => sum + Number(s.plan.monthlyFee || 0), 0);
+        .filter(
+            (subscription) =>
+                ["ACTIVE", "TRIAL"].includes(subscription.status) &&
+                subscription.expiresAt >= now
+        )
+        .reduce(
+            (sum, subscription) =>
+                sum + Number(subscription.plan.monthlyFee || 0),
+            0
+        );
 
     return (
         <main className="p-6">

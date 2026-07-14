@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 
@@ -19,7 +20,12 @@ export async function POST(req: Request) {
             );
         }
 
-        const { name, email, phone, address } = await req.json();
+        const body = await req.json();
+
+        const name = String(body.name || "").trim();
+        const email = String(body.email || "").trim();
+        const phone = String(body.phone || "").trim();
+        const address = String(body.address || "").trim();
 
         if (!name) {
             return NextResponse.json(
@@ -41,7 +47,12 @@ export async function POST(req: Request) {
 
             const trialPlan = await tx.subscriptionPlan.upsert({
                 where: { name: "Trial" },
-                update: {},
+                update: {
+                    monthlyFee: 0,
+                    propertyLimit: 1,
+                    unitLimit: 20,
+                    active: true,
+                },
                 create: {
                     name: "Trial",
                     monthlyFee: 0,
@@ -51,25 +62,38 @@ export async function POST(req: Request) {
                 },
             });
 
+            const startsAt = new Date();
+
             const subscription = await tx.companySubscription.create({
                 data: {
                     companyId: company.id,
                     planId: trialPlan.id,
                     status: "TRIAL",
-                    startsAt: new Date(),
-                    expiresAt: addDays(new Date(), 30),
+                    startsAt,
+                    expiresAt: addDays(startsAt, 30),
                 },
             });
 
             return { company, subscription };
         });
 
-        return NextResponse.json({ ok: true, ...result });
+        revalidatePath("/dashboard");
+        revalidatePath("/dashboard/companies");
+        revalidatePath("/dashboard/subscriptions");
+        revalidatePath("/dashboard/switch-company");
+
+        return NextResponse.json({
+            ok: true,
+            ...result,
+        });
     } catch (error) {
         console.error("Create company error:", error);
 
         return NextResponse.json(
-            { ok: false, error: "Server error while creating company" },
+            {
+                ok: false,
+                error: "Server error while creating company",
+            },
             { status: 500 }
         );
     }
